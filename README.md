@@ -1,6 +1,6 @@
 <h1 align="center"> Call CNVs from exome sequencing data </h1>
 
-The pipeline enables germline Copy Number Variations (CNVs) to be called from human exome sequencing data.<br>
+JACNEx calls germline Copy Number Variations (CNVs) from exome sequencing data.<br>
 The input data of this pipeline are Binary Alignment Maps (BAM) and Browser Extensible Data (BED) containing the intervals associated with the canonical transcripts.<br>
 For more information how obtaining the different files see https://github.com/ntm/grexome-TIMC-Primary<br>
 
