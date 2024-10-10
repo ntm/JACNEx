@@ -18,7 +18,8 @@
 
 
 import logging
-import matplotlib.pyplot
+import matplotlib
+import matplotlib.figure
 import matplotlib.backends.backend_pdf
 import scipy.cluster.hierarchy
 
@@ -176,18 +177,17 @@ def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, t
 
     ##################
     # make the plot
+    matplotlib.use('pdf')
     pdf = matplotlib.backends.backend_pdf.PdfPages(plotFile)
-    # Disable interactive mode
-    matplotlib.pyplot.ioff()
-    fig = matplotlib.pyplot.figure(figsize=(25, 10))
-    matplotlib.pyplot.title(title)
+    fig = matplotlib.figure.Figure(figsize=(25, 10))
+    ax = fig.subplots()
     scipy.cluster.hierarchy.dendrogram(linkageMatrix,
                                        leaf_rotation=30,
                                        leaf_label_func=leafLabelFunc,
                                        link_color_func=linkColorFunc,
-                                       count_sort='descending')
-
-    matplotlib.pyplot.ylabel("Distance")
+                                       count_sort='descending',
+                                       ax=ax)
+    ax.set_title(title)
+    ax.set_ylabel("Distance")
     pdf.savefig(fig)
-    matplotlib.pyplot.close()
     pdf.close()
