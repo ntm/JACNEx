@@ -187,7 +187,7 @@ def findBestPrevCF(countsFilesAll, samples):
         samplesD[s] = 1
     for cf in countsFilesAll:
         try:
-            samplesCF = countFrags.countsFile.parseCountsFile(cf)[1]
+            samplesCF = countFrags.countsFile.countsFile2samples(cf)
         except Exception as e:
             logger.error("Parsing pre-existing countsFile %s: %s", cf, e)
             raise Exception('cannot parse pre-existing countsFile')

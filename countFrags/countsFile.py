@@ -204,6 +204,27 @@ def parseCountsFile(countsFile):
     return(genomicWindows, samples, counts)
 
 
+#############################################################
+# countsFile2samples:
+# useful to quickly extract just the samples from a countsFile.
+#
+# Arg:
+#   - a countsFile produced by printCountsFile()
+#
+# Returns the list of sampleIDs (ie strings) present in countsFile
+def countsFile2samples(countsFile):
+    try:
+        npzCounts = numpy.load(countsFile, mmap_mode='r')
+    except Exception as e:
+        logger.error("Grabbing samples from provided countsFile %s: %s", countsFile, e)
+        raise Exception('cannot grab samples from countsFile')
+
+    # samples
+    samples = (npzCounts['samples']).tolist()
+    npzCounts.close()
+    return(samples)
+
+
 ###############################################################################
 ############################ PRIVATE FUNCTIONS ################################
 ###############################################################################
