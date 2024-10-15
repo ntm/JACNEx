@@ -154,6 +154,27 @@ def parseAndNormalizeCounts(countsFile):
 
 
 #############################################################
+# countsFile2samples:
+# useful to quickly extract just the samples from a countsFile.
+#
+# Arg:
+#   - a countsFile produced by printCountsFile()
+#
+# Returns the list of sampleIDs (ie strings) present in countsFile
+def countsFile2samples(countsFile):
+    try:
+        npzCounts = numpy.load(countsFile, mmap_mode='r')
+    except Exception as e:
+        logger.error("Grabbing samples from provided countsFile %s: %s", countsFile, e)
+        raise Exception('cannot grab samples from countsFile')
+
+    # samples
+    samples = (npzCounts['samples']).tolist()
+    npzCounts.close()
+    return(samples)
+
+
+#############################################################
 # printCountsFile:
 # Args:
 # - 'genomicWindows' is a list of exons and pseudo-exons as returned by processBed,
@@ -172,6 +193,10 @@ def printCountsFile(genomicWindows, samples, counts, outFile):
         logger.error("Cannot save counts to outFile %s: %s", outFile, e)
         raise Exception('cannot save counts to outFile')
 
+
+###############################################################################
+############################ PRIVATE FUNCTIONS ################################
+###############################################################################
 
 #############################################################
 # parseCountsFile:
@@ -203,31 +228,6 @@ def parseCountsFile(countsFile):
     npzCounts.close()
     return(genomicWindows, samples, counts)
 
-
-#############################################################
-# countsFile2samples:
-# useful to quickly extract just the samples from a countsFile.
-#
-# Arg:
-#   - a countsFile produced by printCountsFile()
-#
-# Returns the list of sampleIDs (ie strings) present in countsFile
-def countsFile2samples(countsFile):
-    try:
-        npzCounts = numpy.load(countsFile, mmap_mode='r')
-    except Exception as e:
-        logger.error("Grabbing samples from provided countsFile %s: %s", countsFile, e)
-        raise Exception('cannot grab samples from countsFile')
-
-    # samples
-    samples = (npzCounts['samples']).tolist()
-    npzCounts.close()
-    return(samples)
-
-
-###############################################################################
-############################ PRIVATE FUNCTIONS ################################
-###############################################################################
 
 #################################################
 # convertExon:
