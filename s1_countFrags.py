@@ -294,7 +294,7 @@ def main(argv):
     if nbOfSamplesToProcess == 0:
         logger.info("all provided BAMs are in previous countsFile")
         # if samples exactly match those in countsFile, return immediately
-        prevSamples = countFrags.countsFile.parseAndNormalizeCounts(countsFile)[0]
+        prevSamples = countFrags.countsFile.countsFile2samples(countsFile)
         if prevSamples == samples:
             logger.info("provided BAMs exactly match those in previous countsFile, not producing a new one")
             return()
