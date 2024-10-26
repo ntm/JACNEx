@@ -122,7 +122,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         # Discarding when any if the below is set:
         #   4 0x4 read unmapped
         #   8 0x8 mate unmapped
-        #   256 0x80 not primary alignment
+        #   256 0x100 secondary alignment
         #   512 0x200 read fails platform/vendor quality checks
         #   1024 0x400 read is PCR or optical duplicate
         #   -> sum == 1804
