@@ -115,8 +115,12 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         ############################################
         # Preprocessing:
         # - need to parse the alignements grouped by qname, "samtools collate" allows this;
-        # - we can also immediately filter out poorly mapped (low MAPQ) or dubious/bad
+        # - we can immediately filter out poorly mapped (low MAPQ) or dubious/bad
         #   alignments based on the SAM flags
+        # - we also ignore alignments on ALT contigs (samples in the same cluster can
+        #   match different ALT haplotypes, therefore counting alis on ALTs would result
+        #   in erroneous calls), and we "ignore" the MAPQ changes done by bwa-postalt if
+        #   it ran (we use the "om" tag, which contains the original mapq)
         # Requiring:
         #   1 0x1 read paired
         # Discarding when any if the below is set:
@@ -131,7 +135,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         tmpDirPrefix = tmpDirObj.name + "/tmpcoll"
 
         cmd = [samtools, 'collate', '-O', '--output-fmt', 'SAM', '--threads', str(realJobs)]
-        cmd.extend(['--input-fmt-option', 'filter=(mapq >= 20) && flag.paired && !(flag & 1804)'])
+        cmd.extend(['--input-fmt-option', 'filter=flag.paired && !(flag & 1804) && ((mapq >= 20) || ([om] >= 20)) && (rname !~ "_alt$")'])
         cmd.extend([bamFile, tmpDirPrefix])
         samproc = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
 
