@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 # Returns priors (ndarray of nbStates floats): prior probabilities for each state.
 def calcPriors(likelihoods):
     # max number of iterations, hard-coded
-    maxIter = 20
+    maxIter = 30
 
     nbStates = likelihoods.shape[2]
     # priors start at 1 (ie we will initially count states with max likelihood)
