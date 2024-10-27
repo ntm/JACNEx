@@ -26,10 +26,11 @@ import getopt
 import logging
 import os
 import sys
-import traceback
+# import traceback
 
 ####### JACNEx modules
-import clusterSamps.clustFile
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+import clusterSamps.clustFile  # noqa: E402
 
 # set up logger, using inherited config, in case we get called as a module
 logger = logging.getLogger(__name__)
@@ -288,6 +289,6 @@ if __name__ == '__main__':
         main(sys.argv)
     except Exception as e:
         # details on the issue should be in the exception name, print it to stderr and die
-        sys.stderr.write("ERROR in " + scriptName + " : " + repr(e) + "\n")
-        traceback.print_exc()
+        sys.stderr.write("ERROR in " + scriptName + " : " + str(e) + "\n")
+        # traceback.print_exc()
         sys.exit(1)
