@@ -128,7 +128,7 @@ def main(argv):
         logger.error("error parsing clusterFile: %s", repr(e))
         raise
 
-    toPrint = "CLUSTER_ID\tSAMPLES\tFIT_WITH\tVALID"
+    toPrint = "CLUSTER_ID\tFIT_WITH\tGENDER\tVALID\tSAMPLES"
     # new columns, see USAGE for their content
     toPrint += "\tNUMBER_Of_BATCHES\tBATCHES\tNUMBER_Of_BATCHES_FITWITH\tBATCHES_FITWITH"
     print(toPrint)
