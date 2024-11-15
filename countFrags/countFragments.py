@@ -384,7 +384,7 @@ def processBatch(batchOfLines, nbOfExons, maxGap, minMapq):
             qBad = True
             continue
 
-        if ali[4] < minMapq:
+        if int(ali[4]) < minMapq:
             # MAPQ low but om acceptable: we only keep the alignment if all SA and XA
             # alignements are on ALT contigs
             # optional fiends in SAM start at column 12, ie ali[11]
