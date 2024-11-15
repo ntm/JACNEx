@@ -104,6 +104,8 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
     # number of alignments to process in a batch, this is just a performance tuning param,
     # default should be OK.
     batchSize = 1000000
+    # min MAPQ to accept alignments
+    minMapq = 20
 
     try:
         # data structures to return:
@@ -117,10 +119,11 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         # - need to parse the alignements grouped by qname, "samtools collate" allows this;
         # - we can immediately filter out poorly mapped (low MAPQ) or dubious/bad
         #   alignments based on the SAM flags
-        # - we also ignore alignments on ALT contigs (samples in the same cluster can
-        #   match different ALT haplotypes, therefore counting alis on ALTs would result
-        #   in erroneous calls), and we "ignore" the MAPQ changes done by bwa-postalt if
-        #   it ran (we use the "om" tag, which contains the original mapq)
+        # - we also ignore alignments on contigs that don't carry exons (eg decoy, but also
+        #   GRCh38 ALT contigs: samples in the same cluster can match different ALT haplotypes,
+        #   therefore counting alis on ALTs would result in bad CNV calls), and we "ignore"
+        #   the MAPQ changes done by bwa-postalt if it ran and reduced the MAPQ on the main
+        #   chroms in favor of ALTs (we use the "om" tag, which contains the original mapq)
         # Requiring:
         #   1 0x1 read paired
         # Discarding when any if the below is set:
@@ -135,7 +138,10 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         tmpDirPrefix = tmpDirObj.name + "/tmpcoll"
 
         cmd = [samtools, 'collate', '-O', '--output-fmt', 'SAM', '--threads', str(realJobs)]
-        cmd.extend(['--input-fmt-option', 'filter=flag.paired && !(flag & 1804) && ((mapq >= 20) || ([om] >= 20)) && (rname !~ "_alt$")'])
+        filterString = 'filter=flag.paired && !(flag & 1804) && ((mapq >= ' + minMapq
+        filterString += ') || ([om] >= ' + minMapq + ')) && (rname =~ "^('
+        filterString += '|'.join(exonNCLs.keys()) + ')$")'
+        cmd.extend(['--input-fmt-option', filterString])
         cmd.extend([bamFile, tmpDirPrefix])
         samproc = subprocess.Popen(cmd, stdout=subprocess.PIPE, universal_newlines=True)
 
@@ -195,7 +201,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
                         # this batch is full and we changed QNAME => ''-terminate batch (as expected by
                         # processBatch), process it and start a new batch
                         thisBatch.append('')
-                        futureRes = pool.submit(processBatch, thisBatch, nbOfExons, maxGap)
+                        futureRes = pool.submit(processBatch, thisBatch, nbOfExons, maxGap, minMapq)
                         futureRes.add_done_callback(batchDone)
                         thisBatch = [nextLine]
                         thisBatchSize = 1
@@ -205,7 +211,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
             # process last batch (unless bamFile had zero alignments)
             if thisBatchSize > 0:
                 thisBatch.append('')
-                futureRes = pool.submit(processBatch, thisBatch, nbOfExons, maxGap)
+                futureRes = pool.submit(processBatch, thisBatch, nbOfExons, maxGap, minMapq)
                 futureRes.add_done_callback(batchDone)
 
         # wait for samtools to finish cleanly and check exit code
@@ -301,13 +307,14 @@ def countAndMergeBPs(breakPoints):
 #     must be in the same batch. A batch must end with an empty line (ie '').
 #   - total number of exons
 #   - the maximum accepted gap length between paired reads
+#   - the min MAPQ/om applied to keep an alignment (for ALT-aware processing)
 # Return a 2-element tuple (batchCounts, batchBPs) where:
 # - batchCounts is a 1D numpy int array dim = nbOfExons allocated here and filled with
 #   the counts for this batch of lines,
 # - batchBPs is a list of 5-element lists [CHR, START, END, CNVTYPE, QNAME], where
 #   START and END are the coordinates of the putative breakpoints supported by this
 #   batch of lines, CNVTYPE is 'DEL' or 'DUP',  and QNAME is the supporting fragment
-def processBatch(batchOfLines, nbOfExons, maxGap):
+def processBatch(batchOfLines, nbOfExons, maxGap, minMapq):
     # We need to process all alis for a QNAME together
     # -> store data in accumulators until we change QNAME
     # Accumulators:
@@ -335,13 +342,12 @@ def processBatch(batchOfLines, nbOfExons, maxGap):
     for line in batchOfLines:
         ali = []
         if (line != ''):
-            ali = line.split('\t', maxsplit=6)
-            # discard last field (python split keeps all the remains after maxsplit in the last field)
-            ali.pop()
+            ali = line.split('\t')
         if (len(ali) == 0) or (ali[0] != qname):
             # we are done with batchOfLines or we changed qname: process accumulated data
             if (not qBad) and (qname != "") and (qchrom != ""):
-                # (qchrom == "" is possible if all alis for qname mapped to non-main chroms)
+                # (qchrom == "" is possible if all alis for qname had low MAPQ and were rescued
+                # by acceptable om, but actually mapped as SA/XA to non-ALT contigs)
                 # if we have 2 alis on a strand, make sure they are in "read" order (switch them if needed)
                 if (len(qstartF) == 2) and (qstartOnReadF[0] > qstartOnReadF[1]):
                     qstartF.reverse()
@@ -372,23 +378,32 @@ def processBatch(batchOfLines, nbOfExons, maxGap):
         # -> in both cases update accumulators with current line
         if qname == "":
             qname = ali[0]
-
-        # ali[2] == chrom
-        if ali[2] not in exonNCLs:
-            # ignore alis that don't map to a chromosome where we have at least one exon;
-            # importantly this skips alis on non-main GRCh38 "chroms" (eg ALT contigs)
-            # Note: we ignore the ali but don't set qBad, because some tools report alignments to
-            # ALT contigs in the XA tag ("secondary alignemnt") of the main chrom ali (as expected),
-            # but also produce the alignements to ALTs as full alignement records with flag 0x800
-            # "supplementary alignment" set, this is contradictory but we have to deal with it...
-            continue
-        elif qchrom == "":
             qchrom = ali[2]
         elif qchrom != ali[2]:
             # qname has alignments on different chroms, ignore it
             qBad = True
             continue
-        # else same chrom, keep going
+
+        if ali[4] < minMapq:
+            # MAPQ low but om acceptable: we only keep the alignment if all SA and XA
+            # alignements are on ALT contigs
+            # optional fiends in SAM start at column 12, ie ali[11]
+            for optF in ali[11:]:
+                match = re.match(r"^[SX]A:Z:(.+)$", optF)
+                if match:
+                    otherAlis = match.group(1).split(';')
+                    # XAs/SAs always end with ';' -> discard last (empty) element
+                    otherAlis.pop()
+                    for oa in otherAlis:
+                        if re.match(r"^[^,]+_alt,", oa) is None:
+                            qBad = True
+                            break
+                    if qBad:
+                        # don't examine other optF's
+                        break
+            if qBad:
+                # ignore this ali
+                continue
 
         # Retrieving flags for STRAND and first/second read
         currentFlag = int(ali[1])
