@@ -138,8 +138,8 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         tmpDirPrefix = tmpDirObj.name + "/tmpcoll"
 
         cmd = [samtools, 'collate', '-O', '--output-fmt', 'SAM', '--threads', str(realJobs)]
-        filterString = 'filter=flag.paired && !(flag & 1804) && ((mapq >= ' + minMapq
-        filterString += ') || ([om] >= ' + minMapq + ')) && (rname =~ "^('
+        filterString = 'filter=flag.paired && !(flag & 1804) && ((mapq >= ' + str(minMapq)
+        filterString += ') || ([om] >= ' + str(minMapq) + ')) && (rname =~ "^('
         filterString += '|'.join(exonNCLs.keys()) + ')$")'
         cmd.extend(['--input-fmt-option', filterString])
         cmd.extend([bamFile, tmpDirPrefix])
