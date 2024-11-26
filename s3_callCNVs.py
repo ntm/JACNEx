@@ -471,13 +471,6 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     logger.info("cluster %s - done calcLikelihoods in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime
 
-    # plot exonsToPlot if any
-    figures.plotExons.plotExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                                CN0sigma, CN2means, CN2sigmas, fpmCn0, clusterID, plotDir)
-    thisTime = time.time()
-    logger.info("cluster %s - done plotExons in %.1fs", clusterID, thisTime - startTime)
-    startTime = thisTime
-
     # calculate priors (maxing the posterior probas iteratively until convergence)
     priors = callCNVs.priors.calcPriors(likelihoods)
     formattedPriors = "  ".join(["%.2e" % x for x in priors])
@@ -503,6 +496,17 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
                                               priors, adjustTransMatDMax, minGQ, jobs)
     thisTime = time.time()
     logger.info("cluster %s - done viterbiAllSamples in %.1fs", clusterID, thisTime - startTime)
+    startTime = thisTime
+
+    # create exonsToPlot elements for all called CNVs if requested
+    ### TODO: add --plotAll option and if set, make plots for all called CNVs, ie add elements
+    ### to exonsToPlot based on CNVs
+
+    # plot exonsToPlot if any
+    figures.plotExons.plotExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                                CN0sigma, CN2means, CN2sigmas, clusterID, plotDir)
+    thisTime = time.time()
+    logger.info("cluster %s - done plotExons in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime
 
     # set CN2means of NOCALL exons to 0
