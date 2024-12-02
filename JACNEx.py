@@ -263,8 +263,8 @@ def main(argv):
         except Exception:
             raise Exception(stepNames[0] + " vcfDir " + vcfDir + "doesn't exist and can't be mkdir'd")
 
-    # QC plots from step2 (and step3 if --regionsToPlot was provided) go in date-stamped
-    # subdirs of plotDir
+    # QC plots from step3 (if --regionsToPlot was provided) go in
+    # a subdir of plotDir
     plotDir = workDir + '/QCPlots/'
     if not os.path.isdir(plotDir):
         try:
@@ -312,7 +312,6 @@ def main(argv):
 
         #########
         # complement step2Args and check them
-        step2Args.extend(["--plotDir", plotDir])
 
         # new clustersFile to create
         clustersFile = clustersDir + '/clusters_' + dateStamp + '.tsv.gz'
@@ -333,7 +332,7 @@ def main(argv):
         #########
         # complement step3Args and check them
         if "--regionsToPlot" in step3Args:
-            thisPlotDir = plotDir + '/exonProfiles_' + dateStamp
+            thisPlotDir = plotDir + '/ExonProfiles_' + dateStamp
             if os.path.isdir(thisPlotDir):
                 raise Exception(stepNames[3] + " plotDir " + thisPlotDir + " already exists")
             step3Args.extend(["--plotDir", thisPlotDir])

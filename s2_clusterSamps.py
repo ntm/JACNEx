@@ -59,7 +59,6 @@ def parseArgs(argv):
     outFile = ""
     # optional args with default values
     minSamps = 20
-    plotDir = "./plotDir/"
 
     usage = "NAME:\n" + scriptName + """\n
 DESCRIPTION:
@@ -71,18 +70,17 @@ Each gonosome cluster is (should be!) single-gender, this gender is predicted an
 printed in the GENDER column (and used in step s3).
 Results are printed to --out in TSV format: 5 columns
 [CLUSTER_ID, FIT_WITH, GENDER, VALID, SAMPLES]
-In addition, dendrograms of the clustering results are produced as pdf files in plotDir.
+In addition, dendrograms of the clustering results are produced as pdf files alongside outFile.
 
 ARGUMENTS:
    --counts [str]: NPZ file with the fragment counts, produced by s1_countFrags.py
    --out [str] : file where clusters will be saved, must not pre-exist, will be gzipped if it ends
                  with '.gz', can have a path component but the subdir must exist
    --minSamps [int]: minimum number of samples for a cluster to be declared valid, default : """ + str(minSamps) + """
-   --plotDir [str]: subdir (created if needed) where plot files will be produced, default:  """ + plotDir + """
    -h , --help  : display this help and exit\n"""
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "out=", "minSamps=", "plotDir="])
+        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "out=", "minSamps="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -98,8 +96,6 @@ ARGUMENTS:
             outFile = value
         elif (opt in ("--minSamps")):
             minSamps = value
-        elif (opt in ("--plotDir")):
-            plotDir = value
         else:
             raise Exception("unhandled option " + opt)
 
@@ -126,15 +122,8 @@ ARGUMENTS:
     except Exception:
         raise Exception("minSamps must be an integer > 1, not " + str(minSamps))
 
-    # test plotdir last so we don't mkdir unless all other args are OK
-    if not os.path.isdir(plotDir):
-        try:
-            os.mkdir(plotDir)
-        except Exception as e:
-            raise Exception("plotDir " + plotDir + " doesn't exist and can't be mkdir'd: " + str(e))
-
     # AOK, return everything that's needed
-    return(countsFile, outFile, minSamps, plotDir)
+    return(countsFile, outFile, minSamps)
 
 
 ####################################################
@@ -144,7 +133,7 @@ ARGUMENTS:
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (countsFile, outFile, minSamps, plotDir) = parseArgs(argv)
+    (countsFile, outFile, minSamps) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -182,13 +171,12 @@ def main(argv):
     # samples, not with XY ones)
 
     # build root name for dendrograms, will just need to append autosomes.pdf or gonosomes.pdf
-    dendroFileRoot = os.path.basename(outFile)
+    dendroFileRoot = outFile
     # remove file extension (.tsv probably), and also .gz if present
     if dendroFileRoot.endswith(".gz"):
         dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
     dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
     dendroFileRoot = dendroFileRoot + "_dendrogram"
-    dendroFileRoot = os.path.join(plotDir, dendroFileRoot)
 
     # autosomes
     try:
