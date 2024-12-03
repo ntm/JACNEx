@@ -248,7 +248,7 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, repr(e))
+        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, str(e))
         raise Exception("parseAndNormalizeCounts failed")
 
     thisTime = time.time()
@@ -557,14 +557,14 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ):
         for oldFile in glob.glob(outDir + '/CNVs_*_old.vcf.gz'):
             os.unlink(oldFile)
     except Exception as e:
-        raise Exception("cannot unlink old VCF file in %s : %s", outDir, repr(e))
+        raise Exception("cannot unlink old VCF file in %s : %s", outDir, str(e))
     # rename prev VCFs as *old
     try:
         for prevFile in glob.glob(outDir + '/CNVs_[AG]_*.vcf.gz'):
             newName = prevFile.replace('.vcf.gz', '_old.vcf.gz')
             os.rename(prevFile, newName)
     except Exception as e:
-        raise Exception("cannot rename prev VCF file as *old: %s", repr(e))
+        raise Exception("cannot rename prev VCF file as *old: %s", str(e))
     # populate clust2prev: key = custerID, value = prev VCF file of the same auto/gono
     # type and whose samples exactly match those of clusterID (ignoring fitWiths for now)
     # and whose minGQ is good
@@ -623,7 +623,7 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ):
                 clusterFound[clustID] = True
             except Exception as e:
                 raise Exception("cannot copy prev VCF %s as %s : %s",
-                                clust2prev[clustID], clust2vcf[clustID], repr(e))
+                                clust2prev[clustID], clust2vcf[clustID], str(e))
     return(clusterFound)
 
 

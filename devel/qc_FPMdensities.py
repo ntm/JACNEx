@@ -121,7 +121,7 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, repr(e))
+        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, str(e))
         raise Exception("parseAndNormalizeCounts failed")
 
     logger.info("done parseAndNormalizeCounts")
@@ -139,7 +139,7 @@ def main(argv):
     try:
         SampsQC(autosomeFPMs, samples, plotFilePass, plotFileFail, testBW=testSmoothingBWs)
     except Exception as e:
-        logger.error("SampsQC failed for %s : %s", countsFile, repr(e))
+        logger.error("SampsQC failed for %s : %s", countsFile, str(e))
         raise Exception("SampsQC failed")
 
     logger.info("ALL DONE")
@@ -207,7 +207,7 @@ def SampsQC(counts, samples, plotFilePass, plotFileFail, minLow2high=0.2, testBW
             try:
                 (dr, dens, bwValue) = smoothData(sampleCounts, maxData=maxData, bandwidth=bw)
             except Exception as e:
-                logger.error('smoothing failed for %s : %s', str(bw), repr(e))
+                logger.error('smoothing failed for %s : %s', str(bw), str(e))
                 raise
             dataRanges.append(dr)
             densities.append(dens)
@@ -390,5 +390,5 @@ if __name__ == '__main__':
         main(sys.argv)
     except Exception as e:
         # details on the issue should be in the exception name, print it to stderr and die
-        sys.stderr.write("ERROR in " + scriptName + " : " + repr(e) + "\n")
+        sys.stderr.write("ERROR in " + scriptName + " : " + str(e) + "\n")
         sys.exit(1)

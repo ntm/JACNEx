@@ -259,7 +259,7 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("Failed to parse and normalize counts for %s: %s", countsFile, repr(e))
+        logger.error("Failed to parse and normalize counts for %s: %s", countsFile, str(e))
         raise Exception("Failed to parse and normalize counts")
 
     thisTime = time.time()
@@ -308,7 +308,7 @@ def main(argv):
     try:
         distributions = bestFitContinuousDistribs(subFPMsVec, userBins)
     except Exception as e:
-        raise Exception("bestFitContinuousDistribs failed: %s", repr(e))
+        raise Exception("bestFitContinuousDistribs failed: %s", str(e))
 
     thisTime = time.time()
     logger.debug("Done fitting continuous distributions on intergenic counts, in %.2f s", thisTime - startTime)
@@ -336,7 +336,7 @@ def main(argv):
         try:
             plotDistrib(data, userBins, distributions_to_use[i], plot_file, NBBestFit, ylim[i])
         except Exception as e:
-            raise Exception(f"Failed to plot distributions for plotFile{i + 1}: {repr(e)}")
+            raise Exception(f"Failed to plot distributions for plotFile{i + 1}: {str(e)}")
 
     thisTime = time.time()
     logger.debug("Done plotting best distributions in %.2f s", thisTime - startTime)

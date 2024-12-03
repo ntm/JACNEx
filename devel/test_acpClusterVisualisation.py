@@ -130,13 +130,13 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, repr(e))
+        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, str(e))
         raise Exception("parseAndNormalizeCounts failed")
 
     try:
         (clust2samps, samp2clusts, fitWith, clust2gender, clustIsValid) = clusterSamps.clustFile.parseClustsFile(clusterFile)
     except Exception as e:
-        logger.error("error parsing clusterFile: %s", repr(e))
+        logger.error("error parsing clusterFile: %s", str(e))
         raise
 
     ### user test variables

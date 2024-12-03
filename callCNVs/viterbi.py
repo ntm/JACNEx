@@ -219,7 +219,7 @@ def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, pri
         return(CNVs)
 
     except Exception as e:
-        logger.error("failed for sample %s in exon %i: %s", sampleID, exonIndex, repr(e))
+        logger.error("failed for sample %s in exon %i: %s", sampleID, exonIndex, str(e))
         raise Exception(sampleID)
 
 

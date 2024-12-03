@@ -146,7 +146,7 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, repr(e))
+        logger.error("parseAndNormalizeCounts failed for %s : %s", countsFile, str(e))
         raise Exception("parseAndNormalizeCounts failed")
 
     thisTime = time.time()
@@ -184,7 +184,7 @@ def main(argv):
         (clust2samps, fitWith, clustIsValid) = clusterSamps.clustering.buildClusters(
             autosomeFPMs, "A", samples, minSamps, plotFile)
     except Exception as e:
-        logger.error("buildClusters failed for autosomes: %s", repr(e))
+        logger.error("buildClusters failed for autosomes: %s", str(e))
         raise Exception("buildClusters failed")
 
     thisTime = time.time()
@@ -197,7 +197,7 @@ def main(argv):
         (clust2sampsGono, fitWithGono, clustIsValidGono) = clusterSamps.clustering.buildClusters(
             gonosomeFPMs, "G", samples, minSamps, plotFile)
     except Exception as e:
-        logger.error("buildClusters failed for gonosomes: %s", repr(e))
+        logger.error("buildClusters failed for gonosomes: %s", str(e))
         raise Exception("buildClusters failed")
     clust2samps.update(clust2sampsGono)
     fitWith.update(fitWithGono)
@@ -220,7 +220,7 @@ def main(argv):
     try:
         clusterSamps.clustFile.printClustsFile(clust2samps, fitWith, clust2gender, clustIsValid, outFile)
     except Exception as e:
-        logger.error("printing clusters failed : %s", repr(e))
+        logger.error("printing clusters failed : %s", str(e))
         raise Exception("printClustsFile failed")
 
     logger.debug("ALL DONE")
@@ -241,5 +241,5 @@ if __name__ == '__main__':
     try:
         main(sys.argv)
     except Exception as e:
-        sys.stderr.write("ERROR in " + scriptName + " : " + repr(e) + "\n")
+        sys.stderr.write("ERROR in " + scriptName + " : " + str(e) + "\n")
         sys.exit(1)

@@ -231,7 +231,7 @@ def computeCN0Parameters(intergenicFPMs):
         (hnorm_loc, hnorm_scale, uncaptThreshold) = callCNVs.exonProcessing.computeCN0Params(intergenicFPMs)
         return hnorm_loc, hnorm_scale, uncaptThreshold
     except Exception as e:
-        logger.error("computeCN0Params failed: %s", repr(e))
+        logger.error("computeCN0Params failed: %s", str(e))
         raise
 
 
@@ -252,7 +252,7 @@ def createPlotsForChromosomeType(chromType, samps2ExonInd, FPMs, exons, pdfFileS
         pdfFile = generatePDFRootName(pdfFile, pdfFileSuffix)
         generateClusterExonPlots(chromType, samps2ExonInd, FPMs, exons, other_params, pdfFile)
     except Exception as e:
-        logger.error(f"generateClusterExonPlots failed for {chromType}: {repr(e)}")
+        logger.error(f"generateClusterExonPlots failed for {chromType}: {str(e)}")
         raise
 
 
@@ -487,7 +487,7 @@ def main(argv):
         (samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs,
          intergenicFPMs) = countFrags.countsFile.parseAndNormalizeCounts(countsFile)
     except Exception as e:
-        logger.error("Failed to parse and normalize counts for %s: %s", countsFile, repr(e))
+        logger.error("Failed to parse and normalize counts for %s: %s", countsFile, str(e))
         raise Exception("Failed to parse and normalize counts")
 
     thisTime = time.time()
@@ -499,7 +499,7 @@ def main(argv):
     try:
         (clust2samps, samp2clusts, fitWith, clust2gender, clustIsValid) = clusterSamps.clustFile.parseClustsFile(clustsFile)
     except Exception as e:
-        raise Exception("parseClustsFile failed for %s : %s", clustsFile, repr(e))
+        raise Exception("parseClustsFile failed for %s : %s", clustsFile, str(e))
 
     thisTime = time.time()
     logger.debug("Done parsing clustsFile, in %.2f s", thisTime - startTime)
@@ -510,7 +510,7 @@ def main(argv):
     try:
         (samps2ExonInd_A, samps2ExonInd_G) = parseUserTSV(tocheckFile, samples, autosomeExons, gonosomeExons)
     except Exception as e:
-        raise Exception("parseUserTSV failed for %s : %s", tocheckFile, repr(e))
+        raise Exception("parseUserTSV failed for %s : %s", tocheckFile, str(e))
 
     thisTime = time.time()
     logger.debug("Done parsing UserTSV, in %.2f s", thisTime - startTime)
@@ -523,7 +523,7 @@ def main(argv):
         createExonPlotsPDF(pdfFile, samps2ExonInd_A, samps2ExonInd_G, autosomeFPMs, gonosomeFPMs, intergenicFPMs,
                            autosomeExons, gonosomeExons, other_params)
     except Exception as e:
-        raise Exception("generateExonPlots failed for %s : %s", tocheckFile, repr(e))
+        raise Exception("generateExonPlots failed for %s : %s", tocheckFile, str(e))
 
     thisTime = time.time()
     logger.debug("Done generateExonPlots, in %.2f s", thisTime - startTime)

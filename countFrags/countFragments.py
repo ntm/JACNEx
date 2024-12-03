@@ -230,7 +230,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
         return(sampleIndex, sampleCounts, breakPointsTSV)
 
     except Exception as e:
-        logger.error("bam2counts failed for %s - %s", bamFile, repr(e))
+        logger.error("bam2counts failed for %s - %s", bamFile, str(e))
         raise Exception(str(sampleIndex))
 
 
