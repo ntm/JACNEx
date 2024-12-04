@@ -72,8 +72,9 @@ def parseArgs(argv):
     # optional args with default values
     minGQ = 5.0
     padding = 10
+    cnvPlotDir = ""
     regionsToPlot = ""
-    plotDir = ""
+    qcPlotDir = ""
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
 
@@ -96,8 +97,9 @@ manner for each cluster. It comprises the following steps:
     prior probabilities;
     - apply the Viterbi algorithm to identify the most likely path (in the CN states), and
     finally call the CNVs.
-In addition, plots of FPMs and CN0-CN3+ models for specified samples+exons (if specified) are
-produced in plotDir.
+In addition, plots of FPMs and CN0-CN3+ models are produced:
+    - if --cnvPlotDir != "" -> for each sample, one plot per exon in every called CNV, in cnvPlotDir;
+    - if --regionsToPlot -> for each samples specified sample+exon (if any), in qcPlotDir.
 
 ARGUMENTS:
     --counts [str]: NPZ file with the fragment counts, as produced by s1_countFrags.py
@@ -110,15 +112,19 @@ ARGUMENTS:
     --minGQ [float]: minimum Genotype Quality score, default : """ + str(minGQ) + """
     --madeBy [str]: program name + version to print as "source=" in the produced VCF.
     --padding [int]: number of bps used to pad the exon coordinates, default : """ + str(padding) + """
-    --regionsToPlot [str, optional]: comma-separated list of sampleID:chr:start-end for which exon-profile
+    --cnvPlotDir [str]: if provided: subdir where per-sample plot files will be created,
+                one file per sample with exon plots for every called CNV, pre-existing files are
+                re-used if possible and squashed otherwise
+    --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
-    --plotDir [str]: subdir (created if needed) where exon-profile plots will be produced
+    --qcPlotDir [str]: subdir (created if needed) where regionsToPlot plots will be produced
     --jobs [int]: cores that we can use, defaults to 80% of available cores ie """ + str(jobs) + "\n" + """
     -h , --help: display this help and exit\n"""
 
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=", "outFile=",
-                                                       "minGQ=", "madeBy=", "padding=", "regionsToPlot=", "plotDir=", "jobs="])
+                                                       "minGQ=", "madeBy=", "padding=",
+                                                       "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -144,10 +150,12 @@ ARGUMENTS:
             madeBy = value
         elif opt in ("--padding"):
             padding = value
+        elif (opt in ("--cnvPlotDir")):
+            cnvPlotDir = value
         elif (opt in ("--regionsToPlot")):
             regionsToPlot = value
-        elif (opt in ("--plotDir")):
-            plotDir = value
+        elif (opt in ("--qcPlotDir")):
+            qcPlotDir = value
         elif opt in ("--jobs"):
             jobs = value
         else:
@@ -207,24 +215,30 @@ ARGUMENTS:
     except Exception:
         raise Exception("jobs must be a positive integer, not " + str(jobs))
 
-    if regionsToPlot != "" and plotDir == "":
-        raise Exception("you cannot provide --regionsToPlot without --plotDir")
-    elif regionsToPlot == "" and plotDir != "":
-        raise Exception("you cannot provide --plotDir without --regionsToPlot")
+    if cnvPlotDir != "" and not os.path.isdir(cnvPlotDir):
+        try:
+            os.mkdir(cnvPlotDir)
+        except Exception as e:
+            raise Exception("cnvPlotDir " + cnvPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
+
+    if qcPlotDir != "" and regionsToPlot == "":
+        raise Exception("you cannot provide --qcPlotDir without --regionsToPlot")
     elif regionsToPlot != "":
         # regionsToPlot: basic syntax check, discarding results;
         # if check fails, it raises an exception that just propagates to caller
         figures.plotExons.checkRegionsToPlot(regionsToPlot)
-
-        # test plotdir last so we don't mkdir unless all other args are OK
-        if not os.path.isdir(plotDir):
+        if qcPlotDir == "":
+            raise Exception("you cannot provide --regionsToPlot without --qcPlotDir")
+        elif not os.path.isdir(qcPlotDir):
+            # test qcPlotDir last so we don't mkdir unless all other args are OK
             try:
-                os.mkdir(plotDir)
+                os.mkdir(qcPlotDir)
             except Exception as e:
-                raise Exception("plotDir " + plotDir + " doesn't exist and can't be mkdir'd: " + str(e))
+                raise Exception("qcPlotDir " + qcPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     # AOK, return everything that's needed
-    return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, regionsToPlot, plotDir, jobs, madeBy)
+    return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, cnvPlotDir,
+            regionsToPlot, qcPlotDir, jobs, madeBy)
 
 
 ####################################################
@@ -234,7 +248,8 @@ ARGUMENTS:
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, regionsToPlot, plotDir, jobs, madeBy) = parseArgs(argv)
+    (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, cnvPlotDir,
+     regionsToPlot, qcPlotDir, jobs, madeBy) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -408,9 +423,10 @@ def main(argv):
 # - sampleIDs: list of nbSOIs sampleIDs (==strings), must be in the same order
 #   as the corresponding samplesOfInterest columns in exonFPMs
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
+# - cnvPlotDir: subdir where one plotFile per sample will be created (if != "")
 # - exonsToPlot: Dict with key==exonIndex, value==list of lists[sampleIndex, sampleID] for
 #   which we need to plot the FPMs and CN0-CN3+ models
-# - plotDir: subdir where plots will be created (if any)
+# - qcPlotDir: subdir where exonsToPlot plots will be created (if any)
 # - clusterID: string, for logging
 # - isHaploid: bool, if True this cluster of samples is assumed to be haploid
 #   for all chromosomes where the exons are located (eg chrX and chrY in men)
@@ -504,7 +520,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # plot exonsToPlot if any
     figures.plotExons.plotExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                                CN0sigma, CN2means, CN2sigmas, clusterID, plotDir)
+                                CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
     thisTime = time.time()
     logger.info("cluster %s - done plotExons in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime

@@ -57,6 +57,8 @@ def parseArgs(argv):
     step1Args = ["s1_countFrags.py"]
     step2Args = ["s2_clusterSamps.py"]
     step3Args = ["s3_callCNVs.py"]
+    # additional JACNEx args used locally and not passed down
+    extraArgs = []
 
     # default values of global optional args, as strings
     # jobs default: 80% of available cores
@@ -87,7 +89,8 @@ Global arguments:
            headerless tab-separated file, columns contain CHR START END EXON_ID)
    --workDir [str] : subdir where intermediate results and QC files are produced, provide a pre-existing
            workDir to reuse results from a previous run (incremental use-case)
-   --regionsToPlot [str]: optional comma-separated list of sampleID:chr:start-end for which exon-profile
+   --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
+   --regionsToPlot [str] : optional comma-separated list of sampleID:chr:start-end for which exon-profile
                plots should be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
    --jobs [int] : cores that we can use, defaults to 80% of available cores ie """ + jobs + """
    -h , --help : display this help and exit
@@ -109,7 +112,7 @@ Step 3 optional arguments, defaults should be OK:
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["bams=", "bams-from=", "bed=", "workDir=", "jobs=",
                                                        "help", "tmp=", "padding=", "maxGap=", "samtools=",
-                                                       "minSamps=", "minGQ=", "regionsToPlot="])
+                                                       "minSamps=", "minGQ=", "plotCNVs", "regionsToPlot="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -130,6 +133,8 @@ Step 3 optional arguments, defaults should be OK:
             step2Args.extend([opt, value])
         elif opt in ("--minGQ", "--regionsToPlot"):
             step3Args.extend([opt, value])
+        elif opt in ("--plotCNVs"):
+            extraArgs.extend([opt, value])
         else:
             raise Exception("unhandled option " + opt)
 
@@ -225,7 +230,7 @@ def main(argv):
     logger.info("%s STARTING", stepNames[0])
 
     # parse, check and preprocess arguments
-    (workDir, step1Args, step2Args, step3Args) = parseArgs(argv)
+    (workDir, step1Args, step2Args, step3Args, extraArgs) = parseArgs(argv)
     logger.info("called with: " + " ".join(argv[1:]))
 
     ##################
@@ -263,14 +268,21 @@ def main(argv):
         except Exception:
             raise Exception(stepNames[0] + " vcfDir " + vcfDir + "doesn't exist and can't be mkdir'd")
 
-    # QC plots from step3 (if --regionsToPlot was provided) go in
-    # a subdir of plotDir
-    plotDir = workDir + '/QCPlots/'
-    if not os.path.isdir(plotDir):
+    # step3: if --plotCNVs, produce one file per sample in cnvPlotDir
+    cnvPlotDir = workDir + '/Plots_CNVs/'
+    if ("--plotCNVs" in extraArgs) and not os.path.isdir(cnvPlotDir):
         try:
-            os.mkdir(plotDir)
+            os.mkdir(cnvPlotDir)
         except Exception:
-            raise Exception(stepNames[0] + " plotDir " + plotDir + " doesn't exist and can't be mkdir'd")
+            raise Exception(stepNames[0] + " cnvPlotDir " + cnvPlotDir + "doesn't exist and can't be mkdir'd")
+
+    # QC plots from step3 (if --regionsToPlot was provided) go in qcPlotDir
+    qcPlotDir = workDir + '/Plots_QC/'
+    if ("--regionsToPlot" in step3Args) and not os.path.isdir(qcPlotDir):
+        try:
+            os.mkdir(qcPlotDir)
+        except Exception:
+            raise Exception(stepNames[0] + " qcPlotDir " + qcPlotDir + " doesn't exist and can't be mkdir'd")
 
     # shared date+time stamp, for new files
     dateStamp = datetime.datetime.today().strftime('%Y-%m-%d_%H-%M-%S')
@@ -332,11 +344,12 @@ def main(argv):
         #########
         # complement step3Args and check them
         if "--regionsToPlot" in step3Args:
-            thisPlotDir = plotDir + '/ExonProfiles_' + dateStamp
-            if os.path.isdir(thisPlotDir):
-                raise Exception(stepNames[3] + " plotDir " + thisPlotDir + " already exists")
-            step3Args.extend(["--plotDir", thisPlotDir])
-
+            thisQcPlotDir = qcPlotDir + '/ExonProfiles_' + dateStamp
+            if os.path.isdir(thisQcPlotDir):
+                raise Exception(stepNames[3] + " thisQcPlotDir " + thisQcPlotDir + " already exists")
+            step3Args.extend(["--qcPlotDir", thisQcPlotDir])
+        if "--plotCNVs" in extraArgs:
+            step3Args.extend(["--cnvPlotDir", cnvPlotDir])
         step3Args.extend(["--madeBy", JACNEx_version])
         step3Args.extend(["--outDir", vcfDir])
         vcfFile = 'CNVs_' + dateStamp + '.vcf.gz'
