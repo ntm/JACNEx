@@ -222,7 +222,7 @@ def findBestPrevCF(countsFilesAll, samples):
 def main(argv):
     # string identifying the current program name (JACNEx) and version, will appear
     # as "##source=" in the VCF
-    JACNEx_version = "JACNEx_dev_version_2024_07"
+    JACNEx_version = "JACNEx_dev_version_2024_12"
     # strings for each step, for log messages / exception names
     stepNames = ("STEP0 - CHECK ARGS, SUBDIRS AND PRE-EXISTING COUNTFILES -", "STEP1 - COUNT FRAGMENTS -",
                  "STEP2 - CLUSTER SAMPLES -", "STEP3 - CALL CNVs -")
