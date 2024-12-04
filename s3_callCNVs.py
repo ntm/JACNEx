@@ -271,16 +271,11 @@ def main(argv):
     startTime = thisTime
 
     ###################
-    # parse clusters informations and returns a tuple containing four dictionaries:
-    # - clust2samps: cluster to samples mapping,
-    # - samp2clusts: sample to clusters mapping,
-    # - fitWith: cluster to similar clusters mapping,
-    # - clust2gender: cluster gender (if gonosome),
-    # - clustIsValid: cluster validity status.
+    # parse clusters file
     try:
         (clust2samps, samp2clusts, fitWith, clust2gender, clustIsValid) = clusterSamps.clustFile.parseClustsFile(clustsFile)
     except Exception as e:
-        raise Exception("parseClustsFile failed for %s : %s", clustsFile, repr(e))
+        raise Exception("parseClustsFile failed for %s : %s", clustsFile, str(e))
 
     thisTime = time.time()
     logger.info("Done parseClustsFile, in %.2f s", thisTime - startTime)
@@ -357,7 +352,7 @@ def main(argv):
             clustExonFPMs = gonosomeFPMs[:, sampleIndexes]
             clustExons = gonosomeExons
 
-        # for plotting we actually need exonsToPlot:
+        # for plotting specified regionsToPlot we actually need exonsToPlot:
         # key==exonIndex, value==list of lists[sampleIndex, sampleID]
         exonsToPlot = {}
         if clusterID in clust2regions:
