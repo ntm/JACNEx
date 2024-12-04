@@ -57,8 +57,10 @@ logger = logging.getLogger(__name__)
 # - refVcfFile (str): name (with path) of the VCF file for the reference cluster (ie
 #   cluster without FITWITHs) that serves as FITWITH for the current cluster, if any
 # - minGQ: float, minimum Genotype Quality (GQ)
+# - cnvPlotDir: string, subdir where plotFiles for each CNV were created (or "")
 # - clusterID (str): id of current cluster (for logging)
-def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding, madeBy, refVcfFile, minGQ, clusterID):
+def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding,
+                   madeBy, refVcfFile, minGQ, cnvPlotDir, clusterID):
     # max GQ to produce in the VCF
     maxGQ = 100
     # min number of aligned fragments supporting given breakpoints to consider
@@ -85,9 +87,10 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding
     toPrint += "##fileDate=" + time.strftime("%y%m%d") + "\n"
     toPrint += "##source=" + madeBy + "\n"
     toPrint += "##JACNEx_commandLine=" + os.path.basename(sys.argv[0]) + ' ' + ' '.join(sys.argv[1:]) + "\n"
-    # minGQ line must stay in sync with parsing lines in checkPrevVCFs(), if this
-    # line changes remember to update checkPrevVCFs()
+    # minGQ and cnvPlotDir lines must stay in sync with parsing lines in checkPrevVCFs(),
+    # if these lines change remember to update checkPrevVCFs()
     toPrint += "##JACNEx_minGQ=" + str(minGQ) + "\n"
+    toPrint += "##JACNEx_cnvPlotDir=" + cnvPlotDir + "\n"
 
     toPrint += """##ALT=<ID=DEL,Description="Deletion">
 ##ALT=<ID=DUP,Description="Duplication">
