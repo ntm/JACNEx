@@ -32,11 +32,61 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################ PUBLIC FUNCTIONS #################################
 ###############################################################################
+
+##########################################
+# recalibrateGQs:
+# recalibrate the GQs of a cluster with FITWITHs, in order to obtain similar
+# numbers of calls of each CNVType as in its reference cluster.
+#
+# Args:
+# - CNVs: list of CNVs, a CNV is a list (types [int, int, int, float, int]):
+#   [CNVType, firstExonIndex, lastExonIndex, qualityScore, sampleIndex]
+# - numSamples: number of samples in the cluster (not its ref cluster)
+# - refVcfFile (str): name (with path) of the VCF file for the reference cluster (ie
+#   cluster without FITWITHs) that serves as FITWITH for the current cluster, if any
+# - minGQ: float, minimum Genotype Quality (GQ)
+# - clusterID (str): id of current cluster (for logging)
+#
+# Returns the recalibrated CNVs.
+def recalibrateGQs(CNVs, numSamples, refVcfFile, minGQ, clusterID):
+    if refVcfFile == "":
+        return(CNVs)
+    recalCNVs = []
+    maxCalls = countCallsFromVCF(refVcfFile)
+    # GQs[CN] is the list of GQs of calls of type CN
+    GQs = [[], [], [], []]
+    for cnv in CNVs:
+        GQs[cnv[0]].append(cnv[3])
+
+    # minGQperCN[CN] is the min GQ that results in accepting at most maxCalls[CN] calls per
+    # sample on average
+    minGQperCN = [0, 0, 0, 0]
+    for cn in (0, 1, 3):
+        numAcceptedCalls = math.floor(numSamples * maxCalls[cn])
+        # we want numAcceptedCalls to have GQs >= minGQ (so they are actually accepted)
+        if numAcceptedCalls < len(GQs[cn]):
+            sortedGQs = sorted(GQs[cn], reverse=True)
+            minGQperCN[cn] = sortedGQs[numAcceptedCalls] - minGQ
+
+    for cnv in CNVs:
+        thisRecalGQ = cnv[3] - minGQperCN[cnv[0]]
+        if thisRecalGQ > minGQ:
+            # > rather than >= , because some non-ref clusters are actually too far from
+            # their ref cluster on many exons and result in poor calls even at max GQ...
+            # these get recalibrated by -(maxGQ-minGQ) (eg -98 with defaults maxGQ==100
+            # and minGQ==2), but we still produce many (bogus) calls if testing with >=
+            recalCNVs.append([cnv[0], cnv[1], cnv[2], thisRecalGQ, cnv[4]])
+
+    if minGQperCN != [0, 0, 0, 0]:
+        logger.info("cluster %s - recalibrated GQs by -%.1f (CN0), -%.1f (CN1), -%.1f (CN3+)",
+                    clusterID, minGQperCN[0], minGQperCN[1], minGQperCN[3])
+
+    return(recalCNVs)
+
+
 ##########################################
 # printCallsFile:
-# print CNVs for a single cluster in VCF format. GQs of FITWITH clusters are
-# "recalibrated" in order to obtain similar numbers of calls of each CNVType as
-# in their reference cluster.
+# print CNVs for a single cluster in VCF format.
 #
 # Args:
 # - outFile (str): name of VCF file to create. Will be squashed if pre-exists,
@@ -54,13 +104,10 @@ logger = logging.getLogger(__name__)
 # - BPDir: dir containing the breakpoint files
 # - padding (int): padding bases used
 # - madeBy (str): Name + version of program that made the CNV calls
-# - refVcfFile (str): name (with path) of the VCF file for the reference cluster (ie
-#   cluster without FITWITHs) that serves as FITWITH for the current cluster, if any
 # - minGQ: float, minimum Genotype Quality (GQ)
 # - cnvPlotDir: string, subdir where plotFiles for each CNV were created (or "")
-# - clusterID (str): id of current cluster (for logging)
 def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding,
-                   madeBy, refVcfFile, minGQ, cnvPlotDir, clusterID):
+                   madeBy, minGQ, cnvPlotDir):
     # max GQ to produce in the VCF
     maxGQ = 100
     # min number of aligned fragments supporting given breakpoints to consider
@@ -68,10 +115,6 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding
     # but 1 is very noisy
     minSupportingFrags = 2
     BPs = parseBreakpoints(BPDir, samples, minSupportingFrags)
-
-    if refVcfFile != "":
-        maxCalls = countCallsFromVCF(refVcfFile)
-        CNVs = recalibrateGQs(CNVs, len(samples), maxCalls, minGQ, clusterID)
 
     try:
         if outFile.endswith(".gz"):
@@ -281,44 +324,6 @@ def countCallsFromVCF(vcfFile):
     maxCalls[1] = numpy.quantile(CN1perSample, numCallsQuantile)
     maxCalls[3] = numpy.quantile(CN3perSample, numCallsQuantile)
     return(maxCalls)
-
-
-##########################################
-# recalibrateGQs:
-# for each CN type, calculate the minGQperCN corresponding to the provided max numbers
-# of calls (on average per sample), and recalibrate the GQs accordingly (-= minGQperCN).
-# Returns the recalibrated CNVs
-def recalibrateGQs(CNVs, numSamples, maxCalls, minGQ, clusterID):
-    recalCNVs = []
-    # GQs[CN] is the list of GQs of calls of type CN
-    GQs = [[], [], [], []]
-    for cnv in CNVs:
-        GQs[cnv[0]].append(cnv[3])
-
-    # minGQperCN[CN] is the min GQ that results in accepting at most maxCalls[CN] calls per
-    # sample on average
-    minGQperCN = [0, 0, 0, 0]
-    for cn in (0, 1, 3):
-        numAcceptedCalls = math.floor(numSamples * maxCalls[cn])
-        # we want numAcceptedCalls to have GQs >= minGQ (so they are actually accepted)
-        if numAcceptedCalls < len(GQs[cn]):
-            sortedGQs = sorted(GQs[cn], reverse=True)
-            minGQperCN[cn] = sortedGQs[numAcceptedCalls] - minGQ
-
-    for cnv in CNVs:
-        thisRecalGQ = cnv[3] - minGQperCN[cnv[0]]
-        if thisRecalGQ > minGQ:
-            # > rather than >= , because some non-ref clusters are actually too far from
-            # their ref cluster on many exons and result in poor calls even at max GQ...
-            # these get recalibrated by -(maxGQ-minGQ) (eg -98 with defaults maxGQ==100
-            # and minGQ==2), but we still produce many (bogus) calls if testing with >=
-            recalCNVs.append([cnv[0], cnv[1], cnv[2], thisRecalGQ, cnv[4]])
-
-    if minGQperCN != [0, 0, 0, 0]:
-        logger.info("cluster %s - recalibrated GQs by -%.1f (CN0), -%.1f (CN1), -%.1f (CN3+)",
-                    clusterID, minGQperCN[0], minGQperCN[1], minGQperCN[3])
-
-    return(recalCNVs)
 
 
 ##########################################

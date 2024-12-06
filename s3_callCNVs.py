@@ -511,6 +511,10 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     logger.info("cluster %s - done viterbiAllSamples in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime
 
+    # recalibrate GQs if cluster has FITWITHs
+    if refVcfFile != "":
+        CNVs = callCNVs.callsFile.recalibrateGQs(CNVs, len(sampleIDs), refVcfFile, minGQ, clusterID)
+
     # if requested: create one plotfile per sample with exon plots for every called CNV
     if cnvPlotDir != "":
         figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
@@ -531,8 +535,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     CN2means[Ecodes < 0] = 0
 
     # print CNVs for this cluster as a VCF file
-    callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs, exons,
-                                      BPDir, padding, madeBy, refVcfFile, minGQ, cnvPlotDir, clusterID)
+    callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs,
+                                      exons, BPDir, padding, madeBy, minGQ, cnvPlotDir)
 
     thisTime = time.time()
     logger.info("cluster %s - ALL DONE, total time: %.1fs", clusterID, thisTime - startTimeCluster)
