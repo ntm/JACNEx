@@ -102,6 +102,8 @@ def plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
                 futureRes.add_done_callback(sampleDone)
                 sampleIndex = CNV[4]
                 CNVsOneSample = [CNV]
+    # pop bogus CNV
+    CNVs.pop()
 
 
 ####################################################
