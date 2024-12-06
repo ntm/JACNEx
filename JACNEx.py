@@ -252,7 +252,7 @@ def main(argv):
         except Exception:
             raise Exception(stepNames[0] + " BPDir " + BPDir + " doesn't exist and can't be mkdir'd")
 
-    # step2: clusterFiles are saved (date-stamped and gzipped) in clustersDir
+    # step2: clusterFiles and dendrograms are saved (date-stamped) in clustersDir
     clustersDir = os.path.join(workDir, 'Clusters/')
     if not os.path.isdir(clustersDir):
         try:
@@ -326,7 +326,7 @@ def main(argv):
         # complement step2Args and check them
 
         # new clustersFile to create
-        clustersFile = os.path.join(clustersDir, 'clusters_' + dateStamp + '.tsv.gz')
+        clustersFile = os.path.join(clustersDir, 'clusters_' + dateStamp + '.tsv')
         if os.path.isfile(clustersFile):
             raise Exception(stepNames[2] + " clustersFile " + clustersFile + " already exists")
         step2Args.extend(["--out", clustersFile])
