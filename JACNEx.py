@@ -237,7 +237,7 @@ def main(argv):
     # hard-coded subdir hierarchy of workDir, created if needed
 
     # step1: countsFiles are saved (date-stamped) in countsDir
-    countsDir = workDir + '/Counts/'
+    countsDir = os.path.join(workDir, 'Counts/')
     if not os.path.isdir(countsDir):
         try:
             os.mkdir(countsDir)
@@ -245,7 +245,7 @@ def main(argv):
             raise Exception(stepNames[0] + " countsDir " + countsDir + "doesn't exist and can't be mkdir'd")
 
     # breakpoint results are saved in BPDir during step1, and used by step3
-    BPDir = workDir + '/Breakpoints/'
+    BPDir = os.path.join(workDir, 'Breakpoints/')
     if not os.path.isdir(BPDir):
         try:
             os.mkdir(BPDir)
@@ -253,7 +253,7 @@ def main(argv):
             raise Exception(stepNames[0] + " BPDir " + BPDir + " doesn't exist and can't be mkdir'd")
 
     # step2: clusterFiles are saved (date-stamped and gzipped) in clustersDir
-    clustersDir = workDir + '/Clusters/'
+    clustersDir = os.path.join(workDir, 'Clusters/')
     if not os.path.isdir(clustersDir):
         try:
             os.mkdir(clustersDir)
@@ -261,7 +261,7 @@ def main(argv):
             raise Exception(stepNames[0] + " clustersDir " + clustersDir + "doesn't exist and can't be mkdir'd")
 
     # step3: callFiles are saved (gzipped) in vcfDir
-    vcfDir = workDir + '/VCFs/'
+    vcfDir = os.path.join(workDir, 'VCFs/')
     if not os.path.isdir(vcfDir):
         try:
             os.mkdir(vcfDir)
@@ -269,7 +269,7 @@ def main(argv):
             raise Exception(stepNames[0] + " vcfDir " + vcfDir + "doesn't exist and can't be mkdir'd")
 
     # step3: if --plotCNVs, produce one file per sample in cnvPlotDir
-    cnvPlotDir = workDir + '/Plots_CNVs/'
+    cnvPlotDir = os.path.join(workDir, 'Plots_CNVs/')
     if ("--plotCNVs" in extraArgs) and not os.path.isdir(cnvPlotDir):
         try:
             os.mkdir(cnvPlotDir)
@@ -277,7 +277,7 @@ def main(argv):
             raise Exception(stepNames[0] + " cnvPlotDir " + cnvPlotDir + "doesn't exist and can't be mkdir'd")
 
     # QC plots from step3 (if --regionsToPlot was provided) go in qcPlotDir
-    qcPlotDir = workDir + '/Plots_QC/'
+    qcPlotDir = os.path.join(workDir, 'Plots_QC/')
     if ("--regionsToPlot" in step3Args) and not os.path.isdir(qcPlotDir):
         try:
             os.mkdir(qcPlotDir)
@@ -302,7 +302,7 @@ def main(argv):
         # we'll make sure findBestPrevCF() returns a file that exists
 
         # new countsFile to create
-        countsFile = countsDir + '/counts_' + dateStamp + '.npz'
+        countsFile = os.path.join(countsDir, 'counts_' + dateStamp + '.npz')
         if os.path.isfile(countsFile):
             raise Exception(stepNames[1] + " countsFile " + countsFile + " already exists")
         step1Args.extend(["--out", countsFile])
@@ -326,7 +326,7 @@ def main(argv):
         # complement step2Args and check them
 
         # new clustersFile to create
-        clustersFile = clustersDir + '/clusters_' + dateStamp + '.tsv.gz'
+        clustersFile = os.path.join(clustersDir, 'clusters_' + dateStamp + '.tsv.gz')
         if os.path.isfile(clustersFile):
             raise Exception(stepNames[2] + " clustersFile " + clustersFile + " already exists")
         step2Args.extend(["--out", clustersFile])
@@ -344,7 +344,7 @@ def main(argv):
         #########
         # complement step3Args and check them
         if "--regionsToPlot" in step3Args:
-            thisQcPlotDir = qcPlotDir + '/ExonProfiles_' + dateStamp
+            thisQcPlotDir = os.path.join(qcPlotDir, 'ExonProfiles_' + dateStamp)
             if os.path.isdir(thisQcPlotDir):
                 raise Exception(stepNames[3] + " thisQcPlotDir " + thisQcPlotDir + " already exists")
             step3Args.extend(["--qcPlotDir", thisQcPlotDir])

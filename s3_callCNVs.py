@@ -185,9 +185,11 @@ ARGUMENTS:
 
     if outFile == "":
         raise Exception("you must provide an outFile with --outFile. Try " + scriptName + " --help.")
-    elif (os.path.isfile(outDir + '/' + outFile)):
-        logger.warning("outFile %s pre-exists, squashing it", outDir + '/' + outFile)
-        os.unlink(outDir + '/' + outFile)
+    else:
+        odf = os.path.join(outDir, outFile)
+        if (os.path.isfile(odf)):
+            logger.warning("outFile %s pre-exists, squashing it", odf)
+            os.unlink(odf)
 
     if madeBy == "":
         raise Exception("you must provide a madeBy string with --madeBy. Try " + scriptName + " --help")
@@ -290,7 +292,7 @@ def main(argv):
     # clust2vcf: key = clusterID, value = name of VCF file to create
     clust2vcf = {}
     for clustID in clust2samps.keys():
-        clust2vcf[clustID] = outDir + '/CNVs_' + clustID + '.vcf.gz'
+        clust2vcf[clustID] = os.path.join(outDir, 'CNVs_' + clustID + '.vcf.gz')
 
     clusterFound = checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, cnvPlotDir)
 
@@ -388,7 +390,7 @@ def main(argv):
     startTime = thisTime
 
     # merge the per-cluster VCFs
-    mergedVCF = outDir + '/' + outFile
+    mergedVCF = os.path.join(outDir, outFile)
     clusterVCFs = []
     for clustID in clustIsValid.keys():
         if clustIsValid[clustID]:
@@ -643,8 +645,8 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
             try:
                 os.rename(clust2prev[clustID], clust2vcf[clustID])
                 for sampleID in clust2samps[clustID]:
-                    prevPF = cnvPlotDir + '/' + sampleID + '_old.pdf'
-                    newPF = cnvPlotDir + '/' + sampleID + '.pdf'
+                    prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '_old.pdf')
+                    newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '.pdf')
                     if os.path.isfile(prevPF):
                         os.rename(prevPF, newPF)
                     elif (cnvPlotDir != ""):
