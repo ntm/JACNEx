@@ -511,18 +511,23 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     logger.info("cluster %s - done viterbiAllSamples in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime
 
-    # create exonsToPlot elements for all called CNVs if requested
-    ### TODO: add --plotAll option and if set, make plots for all called CNVs, ie add elements
-    ### to exonsToPlot based on CNVs
+    # if requested: create one plotfile per sample with exon plots for every called CNV
+    if cnvPlotDir != "":
+        figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+                                   isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
+        thisTime = time.time()
+        logger.info("cluster %s - done plotCNVs in %.1fs", clusterID, thisTime - startTime)
+        startTime = thisTime
 
     # plot exonsToPlot if any
-    figures.plotExons.plotExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                                CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
-    thisTime = time.time()
-    logger.info("cluster %s - done plotExons in %.1fs", clusterID, thisTime - startTime)
-    startTime = thisTime
+    if exonsToPlot:
+        figures.plotExons.plotQCExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                                      CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
+        thisTime = time.time()
+        logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
+        startTime = thisTime
 
-    # set CN2means of NOCALL exons to 0
+    # set CN2means of NOCALL exons to 0 (AFTER plotting and BEFORE printCallsFile)
     CN2means[Ecodes < 0] = 0
 
     # print CNVs for this cluster as a VCF file
