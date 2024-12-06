@@ -17,14 +17,15 @@
 ############################################################################################
 
 
-import numpy
+import concurrent.futures
+import datetime
+import logging
 import math
 import matplotlib
-import matplotlib.figure
 import matplotlib.backends.backend_pdf
-import logging
+import matplotlib.figure
+import numpy
 import os
-import datetime
 
 ####### JACNEx modules
 import callCNVs.likelihoods
@@ -41,6 +42,68 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################ PUBLIC FUNCTIONS #################################
 ###############################################################################
+
+###################################
+# For each sample with at least one called CNV, produce a PDF file in plotDir with
+# one plot per exon covered (+ the called exons immediately surrounding) each CNV.
+# We process jobs samples in parallel.
+#
+# Args:
+# - CNVs: list of CNVs for one cluster, as returned by viterbiAllSamples()
+# - sampleIDs: list of nbSOIs sampleIDs (==strings), must be in the same order
+#   as the corresponding samplesOfInterest columns in exonFPMs
+# - exons (list[str, int, int, str]): exon information.
+# - Ecodes (numpy.ndarray[ints]): exons filtering codes.
+# - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
+#   count for exon e in sample s (includes samples in FITWITH clusters)
+# - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
+#   is in the cluster of interest (vs being in a FITWITH cluster)
+# - isHaploid (bool): Whether the samples are haploid in this cluster.
+# - CN0sigma (float): Scale parameter for CN0 distribution.
+# - CN2means (numpy.ndarray[floats]): means for CN2 distribution.
+# - CN2sigmas (numpy.ndarray[floats]): standard deviations for CN2 distribution.
+# - clusterID [str]
+# - plotDir [str]: subdir where PDFs are produced, pre-existing files are squashed.
+# - jobs [int]: number of samples to process in parallel
+#
+# Produces plotFile (pdf format), returns nothing.
+def plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+             isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir, jobs):
+    # early return if no CNVs
+    if len(CNVs) == 0:
+        return()
+
+    matplotlib.use('pdf')
+    # sort CNVs by sampleIndex-chrom-start
+    CNVs.sort(key=lambda CNV: (CNV[4], CNV[1]))
+    # append bogus final CNV (won't be processed, just needs impossible sampleIndex)
+    CNVs.append([0, 0, 0, 0, -1])
+
+    ##################
+    # Define nested callback for propagating exceptions from children if any
+    def sampleDone(futureRes):
+        e = futureRes.exception()
+        if e is not None:
+            logger.error("plotCNVsOneSample() failed for a sample: %s", str(e))
+            raise(e)
+    ##################
+
+    with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
+        sampleIndex = CNVs[0][4]
+        CNVsOneSample = []
+        for CNV in CNVs:
+            if (CNV[4] == sampleIndex):
+                CNVsOneSample.append(CNV)
+            else:
+                # changing samples
+                futureRes = pool.submit(plotCNVsOneSample, CNVsOneSample, sampleIDs[sampleIndex],
+                                        exons, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                                        CN0sigma, CN2means, CN2sigmas, clusterID, plotDir)
+                futureRes.add_done_callback(sampleDone)
+                sampleIndex = CNV[4]
+                CNVsOneSample = [CNV]
+
+
 ####################################################
 # checkRegionsToPlot:
 # do basic syntactic sanity-check of regionsToPlot, which should be a comma-separated
@@ -147,46 +210,21 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - clusterID [str]
 # - plotDir [str]: Folder path to save the generated PDF.
 # Produces plotFile (pdf format), returns nothing.
-def plotExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
+def plotQCExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
     # return immediately if exonsToPlot is empty
     if not exonsToPlot:
         return
 
+    matplotlib.use('pdf')
     # construct the filename
     current_time = datetime.datetime.now().strftime("%y%m%d_%H-%M-%S")
-    numExons = len(exonsToPlot)
-    plotFile = os.path.join(plotDir, f'{clusterID}_plotExons_{numExons}_{current_time}.pdf')
-    matplotlib.use('pdf')
+    plotFile = os.path.join(plotDir, f'{clusterID}_plotExons_{current_time}.pdf')
     matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
 
-    # number of bins for the histograms: try to use numSamples/2, but at least 40 and at most 100
-    bins = int(min(max(40, exonFPMs.shape[1] / 2), 100))
-
     for thisExon in exonsToPlot.keys():
-        # skip filtered exons : NOT-CAPTURED and FIT-CN2-FAILED
-        if (Ecodes[thisExon] == -1) or (Ecodes[thisExon] == -2):
-            logging.debug(f"Skipping exon {thisExon} ({exons[thisExon][0]}:{exons[thisExon][1]}-{exons[thisExon][2]} {exons[thisExon][3]}), Status: {Ecodes[thisExon]}")
-            continue
-
-        fpms = exonFPMs[thisExon, :]
-
-        # on x axis: plot up to 20% beyond max FPM
-        fpmMax = max(fpms) * 1.2
-        # 1000 evenly-spaced x coordinates, for smooth plots
-        xcoords = numpy.linspace(0, fpmMax, 1000)
-
-        pdfs = callCNVs.likelihoods.calcLikelihoods(
-            xcoords.reshape(1, -1), CN0sigma, numpy.array([Ecodes[thisExon]]),
-            numpy.array([CN2means[thisExon]]), numpy.array([CN2sigmas[thisExon]]),
-            isHaploid, True)
-
-        labels = getLabels(isHaploid, CN0sigma, CN2means[thisExon], CN2sigmas[thisExon])
-
-        fpmSOI = fpms[samplesOfInterest]
-        fpmNonSOI = fpms[~samplesOfInterest]
-
-        plotHistogramAndPdfs(fpmSOI, fpmNonSOI, bins, xcoords, pdfs, exons, thisExon, clusterID,
-                             Ecodes, exonsToPlot, labels, isHaploid, matplotFile)
+        (thisSample, sampleID) = exonsToPlot[thisExon]
+        plotExon(thisSample, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
+                 isHaploid, CN0sigma, CN2means, CN2sigmas, False, clusterID, matplotFile)
     matplotFile.close()
 
 
@@ -220,12 +258,46 @@ def getLabels(isHaploid, CN0Sigma, CN2Mean, CN2Sigma):
 
 
 #####################
-# Plot histogram and PDFs for an exon
-def plotHistogramAndPdfs(fpmSOI, fpmNonSOI, bins, xcoords, pdfs, exons, thisExon, clusterId, ECodes,
-                         exonsToPlot, labels, isHaploid, matplotFile):
+# For one sample+exon, plot histogram of FPM values and overlays model likelihoods
+# for each copy number state (CN0, CN1, CN2, CN3).
+# Save as a fig in matplotFile.
+# Args: most are the same as plotCNVs() args, special notes:
+# thisSample: index of sample among samplesOfInterest (ie not counting FITWITH samples)
+# CNV: for title, ignored if False (eg if plotting uncalled exons for QC)
+def plotExon(thisSample, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
+             isHaploid, CN0sigma, CN2means, CN2sigmas, CNV, clusterID, matplotFile):
+    CNcolors = ['red', 'orange', 'green', 'purple']
+    ECodeSTR = {0: 'CALLED', 1: 'CALLED-WITHOUT-CN1', -1: 'NOCALL:NOT-CAPTURED',
+                -2: 'NOCALL:FIT-CN2-FAILED', -3: 'NOCALL:CN2-LOW-SUPPORT', -4: 'NOCALL:CN0-TOO-CLOSE'}
 
-    colors = ['red', 'orange', 'green', 'purple']
-    ECodeSTR = {1: 'CALLED-WITHOUT-CN1', 0: 'CALLED', -3: 'CN2-LOW-SUPPORT', -4: 'CN0-TOO-CLOSE'}
+    # don't plot NOT-CAPTURED exons, there's nothing interesting to plot
+    # (also ignore FIT-CN2-FAILED exons but I've never seen one)
+    if (Ecodes[thisExon] == -1) or (Ecodes[thisExon] == -2):
+        logging.debug((f"Sample {sampleID}, not plotting exon {exons[thisExon][0]}:"
+                       f"{exons[thisExon][1]}-{exons[thisExon][2]} {exons[thisExon][3]}:"
+                       f"{ECodeSTR[Ecodes[thisExon]]}"))
+        return()
+
+    # number of bins for the histograms: try to use numSamples/2 (including FITWITH samples),
+    # but at least 40 and at most 100
+    nbBins = int(min(max(40, exonFPMs.shape[1] / 2), 100))
+
+    fpms = exonFPMs[thisExon, :]
+    # on x axis: plot up to 20% beyond max FPM
+    fpmMax = max(fpms) * 1.2
+    # 1000 evenly-spaced x coordinates, for smooth plots
+    xcoords = numpy.linspace(0, fpmMax, 1000)
+
+    # as args of calcLikelihoods we need numpy arrays with a single item, use a slice so
+    # we get a view (rather than making a new array with eg numpy.array([Ecodes[thisExon]]))
+    pdfs = callCNVs.likelihoods.calcLikelihoods(
+        xcoords.reshape(1, -1), CN0sigma, Ecodes[thisExon:thisExon + 1],
+        CN2means[thisExon:thisExon + 1], CN2sigmas[thisExon:thisExon + 1], isHaploid, True)
+
+    labels = getLabels(isHaploid, CN0sigma, CN2means[thisExon], CN2sigmas[thisExon])
+
+    fpmSOI = fpms[samplesOfInterest]
+    fpmNonSOI = fpms[~samplesOfInterest]
 
     if isHaploid:
         limY = 2 * max(pdfs[:, :, 2])
@@ -236,7 +308,7 @@ def plotHistogramAndPdfs(fpmSOI, fpmNonSOI, bins, xcoords, pdfs, exons, thisExon
     ax = fig.subplots()
 
     yhist = ax.hist(fpmSOI,
-                    bins=bins,
+                    bins=nbBins,
                     range=(0, xcoords[-1]),
                     label='FPMs (this cluster)',
                     density=True,
@@ -247,9 +319,9 @@ def plotHistogramAndPdfs(fpmSOI, fpmNonSOI, bins, xcoords, pdfs, exons, thisExon
     # histogram of FITWITH samples: on top, but with transparency
     if len(fpmNonSOI) != 0:
         ax.hist(fpmNonSOI,
-                bins=bins,
+                bins=nbBins,
                 range=(0, xcoords[-1]),
-                label='FPMs (FITWITH cluster)',
+                label='FPMs (FITWITH cluster(s))',
                 density=True,
                 color='grey',
                 edgecolor='black',
@@ -258,35 +330,96 @@ def plotHistogramAndPdfs(fpmSOI, fpmNonSOI, bins, xcoords, pdfs, exons, thisExon
     # plot CN models
     for cnState in range(4):
         if (labels[cnState] != ''):
-            if (ECodes[thisExon] == 1) and (cnState == 1):
+            if (Ecodes[thisExon] < 0) or ((Ecodes[thisExon] == 1) and (cnState == 1)):
+                # dashed lines for all CNs of NOCALL exons and for CN1 of CALL-WITHOUT-CN1 exons
                 linestyleFIT = 'dashed'
             else:
                 linestyleFIT = 'solid'
             ax.plot(xcoords,
-                    pdfs[:, :, cnState].flatten(),
+                    pdfs[:, :, cnState].reshape(-1),
                     linewidth=3,
                     linestyle=linestyleFIT,
-                    color=colors[cnState],
+                    color=CNcolors[cnState],
                     label=labels[cnState])
 
-    # vertical line(s) for target sample(s)
-    sampleColors = matplotlib.colormaps['tab20'](numpy.linspace(0, 1, len(exonsToPlot[thisExon])))
+    # vertical dashed line for thisSample
+    ax.axvline(fpmSOI[thisSample],
+               color='blue',
+               linewidth=2,
+               linestyle='dashed',
+               label=f'{sampleID} ({fpmSOI[thisSample]:.2f} FPM)')
 
-    for sampleInfo, sampleColor in zip(exonsToPlot[thisExon], sampleColors):
-        sampleFpm = fpmSOI[sampleInfo[0]]
-        ax.axvline(sampleFpm,
-                   color=sampleColor,
-                   linewidth=3,
-                   linestyle='dashed',
-                   label=f'{sampleInfo[1]} ({sampleFpm:.2f} FPM)')
-
-    title_text = (f"{clusterId}\n"
-                  f"{exons[thisExon][0]}:{exons[thisExon][1]}-{exons[thisExon][2]} {exons[thisExon][3]}\n"
-                  f"{ECodeSTR.get(ECodes[thisExon], 'UNKNOWN')}")
-    ax.set_title(title_text)
+    title = f"{sampleID} in cluster {clusterID}\n"
+    if (CNV):
+        (cn, startExi, endExi, qualScore, sampleIndex) = CNV
+        if isHaploid:
+            if cn == 0:
+                title += "HEMI-DEL "
+            elif cn == 3:
+                title += "DUP "
+            else:
+                raise Exception("plotExon sanity: CNV isHaploid but CN != 0 or 3, impossible")
+        else:
+            if cn == 0:
+                title += "HOMO-DEL "
+            elif cn == 1:
+                title += "HET-DEL "
+            else:
+                title += "DUP "
+        title += f"{exons[startExi][0]}:{exons[startExi][1]}-{exons[endExi][2]}\n"
+    title += f"{ECodeSTR[Ecodes[thisExon]]} exon {exons[thisExon][0]}:{exons[thisExon][1]}-{exons[thisExon][2]}"
+    if (CNV):
+        if (thisExon < CNV[1]):
+            title += " (before CNV)"
+        elif (thisExon <= CNV[2]):
+            title += " (in CNV)"
+        else:
+            title += " (after CNV)"
+    ax.set_title(title)
     ax.set_xlabel("FPM")
     ax.set_ylabel("Density")
     ax.legend()
     ax.set_xlim(0, xcoords[-1])
     ax.set_ylim(0, limY)
     matplotFile.savefig(fig)
+
+
+#####################
+# Given a CNV called in a sample, plot all exons from the CALLed exon preceding the CNV
+# to the CALLed exon following the CNV. Save to matplotFile.
+def plotExonsOneCNV(CNV, sampleID, exons, Ecodes, exonFPMs, samplesOfInterest,
+                    isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, matplotFile):
+    # find CALLed exons surrounding the CNV
+    (cn, startExi, endExi, qualScore, sampleIndex) = CNV
+    chrom = exons[startExi][0]
+    exonBefore = startExi
+    if (exonBefore > 0) and (exons[exonBefore - 1][0] == chrom):
+        exonBefore -= 1
+    while ((exonBefore > 0) and (Ecodes[exonBefore] < 0) and (exons[exonBefore - 1][0] == chrom)):
+        exonBefore -= 1
+    exonAfter = endExi
+    if (exonAfter + 1 < len(exons)) and (exons[exonAfter + 1][0] == chrom):
+        exonAfter += 1
+    while ((exonAfter + 1 < len(exons)) and (Ecodes[exonAfter] < 0) and (exons[exonAfter + 1][0] == chrom)):
+        exonAfter += 1
+
+    for thisExon in range(exonBefore, exonAfter + 1):
+        plotExon(sampleIndex, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
+                 isHaploid, CN0sigma, CN2means, CN2sigmas, CNV, clusterID, matplotFile)
+
+
+#####################
+# Given all called CNVs for one sample, produce a PDF file in plotDir with plots for
+# the relevant exons.
+# CNVs must correspond to a single sample and be sorted by chrom-start.
+def plotCNVsOneSample(CNVs, sampleID, exons, Ecodes, exonFPMs, samplesOfInterest,
+                      isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
+    plotFile = os.path.join(plotDir, sampleID + '_' + clusterID + '.pdf')
+    matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
+    sampleIndex = CNVs[0][4]
+    for CNV in CNVs:
+        if (CNV[4] != sampleIndex):
+            raise Exception("plotCNVsOneSample sanity: called with different samples")
+        plotExonsOneCNV(CNV, sampleID, exons, Ecodes, exonFPMs, samplesOfInterest,
+                        isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, matplotFile)
+    matplotFile.close()
