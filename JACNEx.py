@@ -171,7 +171,7 @@ Step 3 optional arguments, defaults should be OK:
             raise Exception("workDir " + workDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     # AOK, return everything that's needed
-    return(workDir, step1Args, step2Args, step3Args)
+    return(workDir, step1Args, step2Args, step3Args, extraArgs)
 
 
 ####################################################
