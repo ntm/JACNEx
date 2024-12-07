@@ -99,7 +99,7 @@ manner for each cluster. It comprises the following steps:
     finally call the CNVs.
 In addition, plots of FPMs and CN0-CN3+ models are produced:
     - if --cnvPlotDir != "" -> for each sample, one plot per exon in every called CNV, in cnvPlotDir;
-    - if --regionsToPlot -> for each samples specified sample+exon (if any), in qcPlotDir.
+    - if --regionsToPlot -> for each specified sample+region (if any), in qcPlotDir.
 
 ARGUMENTS:
     --counts [str]: NPZ file with the fragment counts, as produced by s1_countFrags.py
@@ -283,8 +283,10 @@ def main(argv):
     logger.info("Done parseClustsFile, in %.2f s", thisTime - startTime)
     startTime = thisTime
 
-    clust2regions = figures.plotExons.preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons,
-                                                              samp2clusts, clustIsValid)
+    ###################
+    # preprocess regionsToPlot
+    clust2RTPs = figures.plotExons.preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons,
+                                                           samp2clusts, clustIsValid)
 
     ###################
     # house-keeping of pre-existing VCFs, and prepare for possible re-use
@@ -294,7 +296,8 @@ def main(argv):
     for clustID in clust2samps.keys():
         clust2vcf[clustID] = os.path.join(outDir, 'CNVs_' + clustID + '.vcf.gz')
 
-    clusterFound = checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, cnvPlotDir)
+    clusterFound = checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ,
+                                 cnvPlotDir, clust2RTPs)
 
     ###################
     # call CNVs independently for each valid cluster, but must start with all
@@ -354,20 +357,7 @@ def main(argv):
             clustExonFPMs = gonosomeFPMs[:, sampleIndexes]
             clustExons = gonosomeExons
 
-        # for plotting specified regionsToPlot we actually need exonsToPlot:
-        # key==exonIndex, value==list of lists[sampleIndex, sampleID]
-        exonsToPlot = {}
-        if clusterID in clust2regions:
-            for si in range(len(clustSamples)):
-                thisSample = clustSamples[si]
-                if thisSample in clust2regions[clusterID]:
-                    for thisExon in clust2regions[clusterID][thisSample]:
-                        if thisExon not in exonsToPlot:
-                            exonsToPlot[thisExon] = []
-                        exonsToPlot[thisExon].append([si, thisSample])
-
-        # by default, assume samples from this cluster are diploid for the chroms
-        # that carry the clustExons
+        # ploidy: all diploid except for gonosomes in Males, which are haploid
         isHaploid = False
         if (clusterID in clust2gender) and (clust2gender[clusterID] == 'M'):
             # Male => samples are haploid for for the sex chroms
@@ -380,9 +370,11 @@ def main(argv):
             if len(fitWith[fw]) == 0:
                 refVcfFile = clust2vcf[fw]
                 break
-
+        RTPs = False
+        if clusterID in clust2RTPs:
+            RTPs = clust2RTPs[clusterID]
         callCNVsOneCluster(clustExonFPMs, clustIntergenicFPMs, samplesOfInterest, clustSamples,
-                           clustExons, cnvPlotDir, exonsToPlot, qcPlotDir, clusterID, isHaploid,
+                           clustExons, cnvPlotDir, RTPs, qcPlotDir, clusterID, isHaploid,
                            minGQ, clust2vcf[clusterID], BPDir, padding, madeBy, refVcfFile, jobs)
 
     thisTime = time.time()
@@ -421,8 +413,7 @@ def main(argv):
 #   as the corresponding samplesOfInterest columns in exonFPMs
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
 # - cnvPlotDir: subdir where one plotFile per sample will be created (if != "")
-# - exonsToPlot: Dict with key==exonIndex, value==list of lists[sampleIndex, sampleID] for
-#   which we need to plot the FPMs and CN0-CN3+ models
+# - exonsToPlot: Dict, key==sampleID, value==list of exonIndexes to plot in qcPlotDir
 # - qcPlotDir: subdir where exonsToPlot plots will be created (if any)
 # - clusterID: string, for logging
 # - isHaploid: bool, if True this cluster of samples is assumed to be haploid
@@ -525,8 +516,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # plot exonsToPlot if any
     if exonsToPlot:
-        figures.plotExons.plotQCExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                                      CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
+        figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+                                      isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
         thisTime = time.time()
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
         startTime = thisTime
@@ -567,14 +558,15 @@ def logExonStats(Ecodes, clusterID):
 # - rename pre-existing prev VCFs and plotFiles as *old
 # - for each (new) cluster: if its samples exactly match those in a prev VCF of the
 #   same type (auto/gono), and the minGQs are equal, and the new cnvPlotDir is "" OR
-#   matches the old cnvPlotDir, and the FITWITH clusters (if any) are also in that situation
+#   matches the old cnvPlotDir, and the cluster doesn't have any RegionsToPlot, and the
+#   FITWITH clusters (if any) are also in that situation:
 #   -> simply rename the prev VCF back as newVCF and same for the prev plotFiles, and
 #      set clusterFound[clusterID] = True
 # - remove any remaining  *old VCFs and plotFiles
 #
 # Returns: clusterFound, key==clusterID, value==True if a match was found and a
 # prev file was copied
-def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, cnvPlotDir):
+def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, cnvPlotDir, clust2RTPs):
     # rename prev VCFs and plotFiles as *old
     try:
         for prevFile in glob.glob(outDir + '/CNVs_[AG]_*.vcf.gz'):
@@ -583,9 +575,10 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
     except Exception as e:
         raise Exception("cannot rename prev VCF file as *old: %s", str(e))
     try:
-        for prevFile in glob.glob(cnvPlotDir + '/*.pdf'):
-            newName = re.sub('.pdf$', '_old.pdf', prevFile)
-            os.rename(prevFile, newName)
+        if cnvPlotDir != "":
+            for prevFile in glob.glob(cnvPlotDir + '/*.pdf'):
+                newName = re.sub('.pdf$', '_old.pdf', prevFile)
+                os.rename(prevFile, newName)
     except Exception as e:
         raise Exception("cannot rename prev cnvPlotFile as *old: %s", str(e))
     # populate clust2prev: key = custerID, value = prev VCF file of the same auto/gono
@@ -631,7 +624,8 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                     logger.error("sanity: could not find auto/gono type in prev VCF filename: %s", prevFile)
 
                 for clustID in clust2samps.keys():
-                    if (not clustID.startswith(prevType)) or (clustID in clust2prev) or (not clustIsValid[clustID]):
+                    if ((clustID in clust2RTPs) or (clustID in clust2prev) or
+                        (not clustID.startswith(prevType)) or (not clustIsValid[clustID])):
                         continue
                     elif clust2samps[clustID] == samples:
                         clust2prev[clustID] = prevFile
@@ -653,15 +647,16 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
         if prevOK:
             try:
                 os.rename(clust2prev[clustID], clust2vcf[clustID])
-                for sampleID in clust2samps[clustID]:
-                    prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '_old.pdf')
-                    newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '.pdf')
-                    if os.path.isfile(prevPF):
-                        os.rename(prevPF, newPF)
-                    elif (cnvPlotDir != ""):
-                        logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
-                                     clustID, os.path.basename(clust2prev[clustID]), prevPF)
-                        raise Exception("previous plotFile %s should exist but doesn't", prevPF)
+                if cnvPlotDir != "":
+                    for sampleID in clust2samps[clustID]:
+                        prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '_old.pdf')
+                        newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '.pdf')
+                        if os.path.isfile(prevPF):
+                            os.rename(prevPF, newPF)
+                        else:
+                            logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
+                                         clustID, os.path.basename(clust2prev[clustID]), prevPF)
+                            raise Exception("previous plotFile %s should exist but doesn't", prevPF)
                 logger.info("cluster %s exactly matches previous VCF %s, reusing it (and cnvPlotFiles if any)",
                             clustID, os.path.basename(clust2prev[clustID]))
                 clusterFound[clustID] = True
@@ -673,8 +668,9 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
     try:
         for oldFile in glob.glob(outDir + '/CNVs_[AG]_*_old.vcf.gz'):
             os.unlink(oldFile)
-        for oldFile in glob.glob(cnvPlotDir + '/*_old.pdf'):
-            os.unlink(oldFile)
+        if cnvPlotDir != "":
+            for oldFile in glob.glob(cnvPlotDir + '/*_old.pdf'):
+                os.unlink(oldFile)
     except Exception as e:
         raise Exception("cannot unlink old VCF / cnvPlotFile: %s", str(e))
 

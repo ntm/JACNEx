@@ -18,7 +18,6 @@
 
 
 import concurrent.futures
-import datetime
 import logging
 import math
 import matplotlib
@@ -45,7 +44,8 @@ logger = logging.getLogger(__name__)
 
 ###################################
 # For each sample with at least one called CNV, produce a PDF file in plotDir with
-# one plot per exon covered (+ the called exons immediately surrounding) each CNV.
+# one plot per exon covered by each CNV (+ the called exons immediately surrounding
+# the CNV).
 # We process jobs samples in parallel.
 #
 # Args:
@@ -193,12 +193,14 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 
 
 ###################################
-# This function generates a PDF file with histograms of FPM values and overlays
-# model likelihoods for different copy number states (CN0, CN1, CN2, CN3).
+# Produce PDF file plotDir/sampleID_clusterID.pdf with one plot per exon specified
+# in exonsToPlot for this sample.
+# Pre-condition: samples+exons in exonsToPlot belong to this cluster.
+#
 # Args:
 # - exons (list[str, int, int, str]): exon information.
-# - exonsToPlot (dict): key==exonIndex, value==list of lists[sampleIndex, sampleID] for
-#                       which we need to plot the FPMs and CN0-CN3+ models
+# - exonsToPlot (dict): key==sampleID and value==list of exonIndexes to plot
+#
 # - Ecodes (numpy.ndarray[ints]): exons filtering codes.
 # - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters, these are
@@ -212,22 +214,27 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - clusterID [str]
 # - plotDir [str]: Folder path to save the generated PDF.
 # Produces plotFile (pdf format), returns nothing.
-def plotQCExons(exons, exonsToPlot, Ecodes, exonFPMs, samplesOfInterest, isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
+def plotQCExons(exonsToPlot, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+                isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
     # return immediately if exonsToPlot is empty
     if not exonsToPlot:
         return
 
-    matplotlib.use('pdf')
-    # construct the filename
-    current_time = datetime.datetime.now().strftime("%y%m%d_%H-%M-%S")
-    plotFile = os.path.join(plotDir, f'{clusterID}_plotExons_{current_time}.pdf')
-    matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
+    # need the index of each sample in sampleIDs
+    samp2index = {}
+    for si in range(len(sampleIDs)):
+        samp2index[sampleIDs[si]] = si
 
-    for thisExon in exonsToPlot.keys():
-        (thisSample, sampleID) = exonsToPlot[thisExon]
-        plotExon(thisSample, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
-                 isHaploid, CN0sigma, CN2means, CN2sigmas, False, clusterID, matplotFile)
-    matplotFile.close()
+    matplotlib.use('pdf')
+    for sampleID in exonsToPlot.keys():
+        plotFile = os.path.join(plotDir, sampleID + '_' + clusterID + '.pdf')
+        if os.path.exists(plotFile):
+            raise Exception('plotQCExons sanity: plotFile ' + plotFile + ' already exists')
+        matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
+        for thisExon in exonsToPlot[sampleID]:
+            plotExon(samp2index[sampleID], sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
+                     isHaploid, CN0sigma, CN2means, CN2sigmas, False, clusterID, matplotFile)
+        matplotFile.close()
 
 
 ###############################################################################
@@ -264,9 +271,9 @@ def getLabels(isHaploid, CN0Sigma, CN2Mean, CN2Sigma):
 # for each copy number state (CN0, CN1, CN2, CN3).
 # Save as a fig in matplotFile.
 # Args: most are the same as plotCNVs() args, special notes:
-# thisSample: index of sample among samplesOfInterest (ie not counting FITWITH samples)
+# thisSampleIndex: index of sample among samplesOfInterest (ie not counting FITWITH samples)
 # CNV: for title, ignored if False (eg if plotting uncalled exons for QC)
-def plotExon(thisSample, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
+def plotExon(thisSampleIndex, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfInterest,
              isHaploid, CN0sigma, CN2means, CN2sigmas, CNV, clusterID, matplotFile):
     CNcolors = ['red', 'orange', 'green', 'purple']
     ECodeSTR = {0: 'CALLED', 1: 'CALLED-WITHOUT-CN1', -1: 'NOCALL:NOT-CAPTURED',
@@ -344,12 +351,12 @@ def plotExon(thisSample, sampleID, thisExon, exons, Ecodes, exonFPMs, samplesOfI
                     color=CNcolors[cnState],
                     label=labels[cnState])
 
-    # vertical dashed line for thisSample
-    ax.axvline(fpmSOI[thisSample],
+    # vertical dashed line for thisSampleIndex
+    ax.axvline(fpmSOI[thisSampleIndex],
                color='blue',
                linewidth=2,
                linestyle='dashed',
-               label=f'{sampleID} ({fpmSOI[thisSample]:.2f} FPM)')
+               label=f'{sampleID} ({fpmSOI[thisSampleIndex]:.2f} FPM)')
 
     title = f"{sampleID} in cluster {clusterID}\n"
     if (CNV):
