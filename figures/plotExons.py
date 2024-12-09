@@ -178,16 +178,17 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
             continue
 
         overlappedExons = exonNCLs[chrom].find_overlap(start, end)
-        if not overlappedExons:
-            logger.warning("ignoring regionToPlot %s, region doesn't overlap any exons", regionStr)
-            continue
-        if clusterID not in clust2regions:
-            clust2regions[clusterID] = {}
-        if sampleID not in clust2regions[clusterID]:
-            clust2regions[clusterID][sampleID] = []
+        foundOverlaps = False
         for exon in overlappedExons:
+            foundOverlaps = True
+            if clusterID not in clust2regions:
+                clust2regions[clusterID] = {}
+            if sampleID not in clust2regions[clusterID]:
+                clust2regions[clusterID][sampleID] = []
             exonIndex = exon[2]
             clust2regions[clusterID][sampleID].append(exonIndex)
+        if not foundOverlaps:
+            logger.warning("ignoring regionToPlot %s, region doesn't overlap any exons", regionStr)
 
     return(clust2regions)
 
