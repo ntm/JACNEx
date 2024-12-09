@@ -306,7 +306,9 @@ def main(argv):
         # parallel, each sample will be processed using coresPerSample.
         # in our tests 7 cores/sample provided the best overall performance, both with jobs=20
         # and jobs=40. This probably depends on your hardware but in any case it's just a
-        # performance tuning parameter.
+        # performance tuning parameter. However, more samples in parallel require more RAM
+        # and more space on tmpDir... So, if running out of RAM / tmpDir space, either run
+        # JACNEx with fewer --jobs, or increase targetCoresPerSample below.
         # -> we target targetCoresPerSample coresPerSample, this is increased if we
         #    have few samples to process (and we use ceil() so we may slighty overconsume)
         targetCoresPerSample = 7
