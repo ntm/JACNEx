@@ -123,9 +123,9 @@ ARGUMENTS:
     -h , --help: display this help and exit\n"""
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=", "outFile=",
-                                                       "minGQ=", "madeBy=", "padding=",
-                                                       "plotCNVs", "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
+        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=",
+                                                       "outFile=", "minGQ=", "madeBy=", "padding=", "plotCNVs",
+                                                       "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -314,7 +314,7 @@ def main(argv):
         if not clustIsValid[clusterID]:
             logger.info("cluster %s is INVALID, skipping it", clusterID)
             continue
-        elif clusterID in clusterFound:
+        elif clusterFound[clusterID] == 2:
             # already logged (with copied filename) in checkPrevVCFs()
             continue
         elif len(fitWith[clusterID]) == 0:
@@ -380,8 +380,9 @@ def main(argv):
         if clusterID in clust2RTPs:
             RTPs = clust2RTPs[clusterID]
         callCNVsOneCluster(clustExonFPMs, clustIntergenicFPMs, samplesOfInterest, clustSamples,
-                           clustExons, plotCNVs, cnvPlotDir, RTPs, qcPlotDir, clusterID, isHaploid,
-                           minGQ, clust2vcf[clusterID], BPDir, padding, madeBy, refVcfFile, jobs)
+                           clustExons, clusterFound[clusterID], plotCNVs, cnvPlotDir, RTPs, qcPlotDir,
+                           clusterID, isHaploid, minGQ, clust2vcf[clusterID], BPDir, padding, madeBy,
+                           refVcfFile, jobs)
 
     thisTime = time.time()
     logger.info("all clusters done,  in %.1fs", thisTime - startTime)
@@ -418,6 +419,9 @@ def main(argv):
 # - sampleIDs: list of nbSOIs sampleIDs (==strings), must be in the same order
 #   as the corresponding samplesOfInterest columns in exonFPMs
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
+# - clustFound: int, 0 if VCF + CNVplots didn't pre-exist, 1 if they did and were
+#   retained but we still must make plots for exonsToPlot
+# - plotCNVs: Bool, if True we must make exon-plots for each called CNV
 # - cnvPlotDir: subdir where one plotFile per sample will be created (if != "")
 # - exonsToPlot: Dict, key==sampleID, value==list of exonIndexes to plot in qcPlotDir
 # - qcPlotDir: subdir where exonsToPlot plots will be created (if any)
@@ -435,14 +439,16 @@ def main(argv):
 #
 # Produce vcfFile, return nothing.
 def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, exons,
-                       cnvPlotDir, exonsToPlot, qcPlotDir, clusterID, isHaploid, minGQ,
-                       vcfFile, BPDir, padding, madeBy, refVcfFile, jobs):
+                       clustFound, plotCNVs, cnvPlotDir, exonsToPlot, qcPlotDir, clusterID,
+                       isHaploid, minGQ, vcfFile, BPDir, padding, madeBy, refVcfFile, jobs):
     # sanity
     if (refVcfFile != '') and (not os.path.isfile(refVcfFile)):
         logger.error("sanity: callCNVs for cluster %s but it needs VCF %s of its ref cluster!",
                      clusterID, refVcfFile)
         raise Exception("sanity: make VCFs of ref clusters first!")
 
+    ######## TODO take plotCNVs and clustFound into account!!!
+    
     logger.info("cluster %s - STARTING TO WORK", clusterID)
     startTime = time.time()
     startTimeCluster = startTime
@@ -562,17 +568,23 @@ def logExonStats(Ecodes, clusterID):
 ####################################################
 # house-keeping of pre-existing VCFs and cnvPlotFiles, and check them for possible re-use:
 # - rename pre-existing prev VCFs and plotFiles as *old
-# - for each (new) cluster: if its samples exactly match those in a prev VCF of the
-#   same type (auto/gono), and the minGQs are equal, and the new cnvPlotDir is "" OR
-#   matches the old cnvPlotDir, and the cluster doesn't have any RegionsToPlot, and the
-#   FITWITH clusters (if any) are also in that situation:
-#   -> simply rename the prev VCF back as newVCF and same for the prev plotFiles, and
-#      set clusterFound[clusterID] = True
+# - for each cluster: if its samples exactly match those in a prev VCF of the
+#   same type (auto/gono), and the minGQs are equal, and plotCNVs==False OR the new cnvPlotDir
+#   matches the old cnvPlotDir, and the FITWITH clusters (if any) are also in that situation:
+#     -> rename the prev VCF back as newVCF
+#     -> if plotCNVs==True, also rename the prev plotFiles back (filename won't change)
+#     -> if the cluster has RegionsToPlot, set clusterFound[clusterID] = 1
+#     -> else the cluster doesn't have any RegionsToPlot, set clusterFound[clusterID] = 2
+# - if any of the above conditions is not satisfied, plotFiles and VCFs must be remade
+#     -> set clusterFound[clusterID] = 0
 # - remove any remaining  *old VCFs and plotFiles
 #
-# Returns: clusterFound, key==clusterID, value==True if a match was found and a
-# prev file was copied
-def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, cnvPlotDir, clust2RTPs):
+# Returns: clusterFound, key==clusterID, value is:
+# 0 if no matching cluster was found
+# 1 if a match was found but regionsToPlot plots must still be produced
+# 2 if a match was found and this cluster is AOK
+def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, plotCNVs,
+                  cnvPlotDir, clust2RTPs):
     # rename prev VCFs and plotFiles as *old
     try:
         for prevFile in glob.glob(outDir + '/CNVs_[AG]_*.vcf.gz'):
@@ -589,13 +601,13 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
         raise Exception("cannot rename prev cnvPlotFile as *old: %s", str(e))
     # populate clust2prev: key = custerID, value = prev VCF file of the same auto/gono
     # type, and whose samples exactly match those of clusterID (ignoring fitWiths for now),
-    # and whose minGQ is identical, and (if cnvPlotDir != "") whose cnvPlotDir is identical
+    # and whose minGQ is identical, and (if plotCNVs) whose cnvPlotDir is identical
     clust2prev = {}
     for prevFile in glob.glob(outDir + '/CNVs_[AG]_*_old.vcf.gz'):
         prevFH = gzip.open(prevFile, "rt")
         minGQmatch = False
         cnvPlotDirMatch = False
-        if (cnvPlotDir == ""):
+        if (not plotCNVs):
             cnvPlotDirMatch = True
         for line in prevFH:
             if line.startswith('##JACNEx_minGQ='):
@@ -605,7 +617,7 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                     break
                 else:
                     minGQmatch = True
-            elif (cnvPlotDir != "") and line.startswith('##JACNEx_cnvPlotDir='):
+            elif (plotCNVs and line.startswith('##JACNEx_cnvPlotDir=')):
                 # again this must exactly match printCallsFile()
                 if line.rstrip() != ('##JACNEx_cnvPlotDir=' + cnvPlotDir):
                     # cnvPlotDir mismatch, cannot reuse this VCF file
@@ -630,8 +642,8 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                     logger.error("sanity: could not find auto/gono type in prev VCF filename: %s", prevFile)
 
                 for clustID in clust2samps.keys():
-                    if ((clustID in clust2RTPs) or (clustID in clust2prev) or
-                        (not clustID.startswith(prevType)) or (not clustIsValid[clustID])):
+                    if ((clustID in clust2prev) or (not clustID.startswith(prevType)) or
+                        (not clustIsValid[clustID])):
                         continue
                     elif clust2samps[clustID] == samples:
                         clust2prev[clustID] = prevFile
@@ -644,6 +656,9 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
 
     # if a cluster and all its FITWITHs have a matching prev, prev VCF and plotFiles can be reused
     clusterFound = {}
+    # default to clusterFound=0
+    for clustID in clust2vcf.keys():
+        clusterFound[clustID] = 0
     for clustID in sorted(clust2prev.keys()):
         prevOK = True
         for fw in fitWith[clustID]:
@@ -653,19 +668,28 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
         if prevOK:
             try:
                 os.rename(clust2prev[clustID], clust2vcf[clustID])
+                # prev plotFiles can be retained if they exist, even if plotCNVs==False
                 if cnvPlotDir != "":
+                    if os.path.basename(clust2prev[clustID]).startswith('CNVs_A_'):
+                        clustType = 'A'
+                    else:
+                        clustType = 'G'
                     for sampleID in clust2samps[clustID]:
-                        prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '_old.pdf')
-                        newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustID + '.pdf')
+                        prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_old.pdf')
+                        newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '.pdf')
                         if os.path.isfile(prevPF):
                             os.rename(prevPF, newPF)
-                        else:
+                        elif plotCNVs:
                             logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
                                          clustID, os.path.basename(clust2prev[clustID]), prevPF)
                             raise Exception("previous plotFile %s should exist but doesn't", prevPF)
+                        # else prev plotFile doesn't exist but plotCNVs==False => NOOP
                 logger.info("cluster %s exactly matches previous VCF %s, reusing it (and cnvPlotFiles if any)",
                             clustID, os.path.basename(clust2prev[clustID]))
-                clusterFound[clustID] = True
+                if (clustID in clust2RTPs):
+                    clusterFound[clustID] = 1
+                else:
+                    clusterFound[clustID] = 2
             except Exception as e:
                 raise Exception("cannot rename prev VCF (or cnvPlotFile?) %s as %s : %s",
                                 clust2prev[clustID], clust2vcf[clustID], str(e))
