@@ -57,8 +57,6 @@ def parseArgs(argv):
     step1Args = ["s1_countFrags.py"]
     step2Args = ["s2_clusterSamps.py"]
     step3Args = ["s3_callCNVs.py"]
-    # additional JACNEx args used locally and not passed down
-    extraArgs = []
 
     # default values of global optional args, as strings
     # jobs default: 80% of available cores
@@ -89,9 +87,9 @@ Global arguments:
            headerless tab-separated file, columns contain CHR START END EXON_ID)
    --workDir [str] : subdir where intermediate results and QC files are produced, provide a pre-existing
            workDir to reuse results from a previous run (incremental use-case)
-   --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
-   --regionsToPlot [str] : optional comma-separated list of sampleID:chr:start-end for which exon-profile
-               plots should be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
+   --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV (useful but slow)
+   --regionsToPlot [str] : comma-separated list of sampleID:chr:start-end for which exon plots
+           should be specifically produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
    --jobs [int] : cores that we can use, defaults to 80% of available cores ie """ + jobs + """
    -h , --help : display this help and exit
 
@@ -134,7 +132,7 @@ Step 3 optional arguments, defaults should be OK:
         elif opt in ("--minGQ", "--regionsToPlot"):
             step3Args.extend([opt, value])
         elif opt in ("--plotCNVs"):
-            extraArgs.extend([opt, value])
+            step3Args.extend([opt, value])
         else:
             raise Exception("unhandled option " + opt)
 
@@ -171,7 +169,7 @@ Step 3 optional arguments, defaults should be OK:
             raise Exception("workDir " + workDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     # AOK, return everything that's needed
-    return(workDir, step1Args, step2Args, step3Args, extraArgs)
+    return(workDir, step1Args, step2Args, step3Args)
 
 
 ####################################################
@@ -230,7 +228,7 @@ def main(argv):
     logger.info("%s STARTING", stepNames[0])
 
     # parse, check and preprocess arguments
-    (workDir, step1Args, step2Args, step3Args, extraArgs) = parseArgs(argv)
+    (workDir, step1Args, step2Args, step3Args) = parseArgs(argv)
     logger.info("called with: " + " ".join(argv[1:]))
 
     ##################
@@ -270,7 +268,7 @@ def main(argv):
 
     # step3: if --plotCNVs, produce one file per sample in cnvPlotDir
     cnvPlotDir = os.path.join(workDir, 'Plots_CNVs/')
-    if ("--plotCNVs" in extraArgs) and not os.path.isdir(cnvPlotDir):
+    if ("--plotCNVs" in step3Args) and not os.path.isdir(cnvPlotDir):
         try:
             os.mkdir(cnvPlotDir)
         except Exception:
@@ -348,8 +346,7 @@ def main(argv):
             if os.path.isdir(thisQcPlotDir):
                 raise Exception(stepNames[3] + " thisQcPlotDir " + thisQcPlotDir + " already exists")
             step3Args.extend(["--qcPlotDir", thisQcPlotDir])
-        if "--plotCNVs" in extraArgs:
-            step3Args.extend(["--cnvPlotDir", cnvPlotDir])
+        step3Args.extend(["--cnvPlotDir", cnvPlotDir])
         step3Args.extend(["--madeBy", JACNEx_version])
         step3Args.extend(["--outDir", vcfDir])
         vcfFile = 'CNVs_' + dateStamp + '.vcf.gz'

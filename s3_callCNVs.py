@@ -72,6 +72,7 @@ def parseArgs(argv):
     # optional args with default values
     minGQ = 5.0
     padding = 10
+    plotCNVs = False
     cnvPlotDir = ""
     regionsToPlot = ""
     qcPlotDir = ""
@@ -98,7 +99,7 @@ manner for each cluster. It comprises the following steps:
     - apply the Viterbi algorithm to identify the most likely path (in the CN states), and
     finally call the CNVs.
 In addition, plots of FPMs and CN0-CN3+ models are produced:
-    - if --cnvPlotDir != "" -> for each sample, one plot per exon in every called CNV, in cnvPlotDir;
+    - if --plotCNVs -> for each sample, one plot per exon in every called CNV, in cnvPlotDir;
     - if --regionsToPlot -> for each specified sample+region (if any), in qcPlotDir.
 
 ARGUMENTS:
@@ -112,9 +113,9 @@ ARGUMENTS:
     --minGQ [float]: minimum Genotype Quality score, default : """ + str(minGQ) + """
     --madeBy [str]: program name + version to print as "source=" in the produced VCF.
     --padding [int]: number of bps used to pad the exon coordinates, default : """ + str(padding) + """
-    --cnvPlotDir [str]: if provided: subdir where per-sample plot files will be created,
-                one file per sample with exon plots for every called CNV, pre-existing files are
-                re-used if possible and squashed otherwise
+    --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
+    --cnvPlotDir [str]: subdir where per-sample plot files will be created if --plotCNVs,
+                pre-existing files are re-used if possible and rm'd if called without --plotCNVs
     --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
     --qcPlotDir [str]: subdir (created if needed) where regionsToPlot plots will be produced
@@ -124,7 +125,7 @@ ARGUMENTS:
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=", "outFile=",
                                                        "minGQ=", "madeBy=", "padding=",
-                                                       "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
+                                                       "plotCNVs", "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -150,6 +151,8 @@ ARGUMENTS:
             madeBy = value
         elif opt in ("--padding"):
             padding = value
+        elif opt in ("--plotCNVs"):
+            plotCNVs = True
         elif (opt in ("--cnvPlotDir")):
             cnvPlotDir = value
         elif (opt in ("--regionsToPlot")):
@@ -217,11 +220,14 @@ ARGUMENTS:
     except Exception:
         raise Exception("jobs must be a positive integer, not " + str(jobs))
 
-    if cnvPlotDir != "" and not os.path.isdir(cnvPlotDir):
-        try:
-            os.mkdir(cnvPlotDir)
-        except Exception as e:
-            raise Exception("cnvPlotDir " + cnvPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
+    if plotCNVs:
+        if cnvPlotDir == "":
+            raise Exception("you cannot provide --plotCNVs without --cnvPlotDir")
+        elif cnvPlotDir != "" and not os.path.isdir(cnvPlotDir):
+            try:
+                os.mkdir(cnvPlotDir)
+            except Exception as e:
+                raise Exception("cnvPlotDir " + cnvPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     if qcPlotDir != "" and regionsToPlot == "":
         raise Exception("you cannot provide --qcPlotDir without --regionsToPlot")
@@ -239,7 +245,7 @@ ARGUMENTS:
                 raise Exception("qcPlotDir " + qcPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     # AOK, return everything that's needed
-    return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, cnvPlotDir,
+    return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
             regionsToPlot, qcPlotDir, jobs, madeBy)
 
 
@@ -250,7 +256,7 @@ ARGUMENTS:
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, cnvPlotDir,
+    (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
      regionsToPlot, qcPlotDir, jobs, madeBy) = parseArgs(argv)
 
     # args seem OK, start working
@@ -297,7 +303,7 @@ def main(argv):
         clust2vcf[clustID] = os.path.join(outDir, 'CNVs_' + clustID + '.vcf.gz')
 
     clusterFound = checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ,
-                                 cnvPlotDir, clust2RTPs)
+                                 plotCNVs, cnvPlotDir, clust2RTPs)
 
     ###################
     # call CNVs independently for each valid cluster, but must start with all
@@ -374,7 +380,7 @@ def main(argv):
         if clusterID in clust2RTPs:
             RTPs = clust2RTPs[clusterID]
         callCNVsOneCluster(clustExonFPMs, clustIntergenicFPMs, samplesOfInterest, clustSamples,
-                           clustExons, cnvPlotDir, RTPs, qcPlotDir, clusterID, isHaploid,
+                           clustExons, plotCNVs, cnvPlotDir, RTPs, qcPlotDir, clusterID, isHaploid,
                            minGQ, clust2vcf[clusterID], BPDir, padding, madeBy, refVcfFile, jobs)
 
     thisTime = time.time()
