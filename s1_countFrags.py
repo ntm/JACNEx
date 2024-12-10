@@ -247,6 +247,59 @@ ARGUMENTS:
 
 
 ####################################################
+# calcParaSamples: decide how many samples to process in parallel.
+# We are allowed to use jobs cores in total: we will process paraSamples samples in
+# parallel, each sample will be processed using coresPerSample.
+#
+# Return 2 ints: (paraSamples, coresPerSample)
+def calcParaSamples(jobs, bamsToProcess, countsFilled, nbOfSamplesToProcess, tmpDir):
+    # In our tests 7 cores/sample provided the best overall performance for WES data, both
+    # with jobs=20 and jobs=40 on a dual-CPU Xeon Silver 4114.
+    # This is surely hardware-dependant, but it's just a performance tuning parameter.
+    # However, more samples in parallel require more RAM and more space on tmpDir...
+    # overfilling the RAM or tmpDir will result in a crash.
+    # -> we target targetCoresPerSample coresPerSample to calculate paraSamples
+    targetCoresPerSample = 7
+    paraSamples = math.ceil(jobs / targetCoresPerSample)
+    # never more paraSamples than the total number of samples
+    paraSamples = min(paraSamples, nbOfSamplesToProcess)
+
+    # don't fill up tmpDir: samtools may need as much space as the paraSamples largest BAMs
+    (totalTmp, usedTmp, freeTmp) = shutil.disk_usage(tmpDir)
+    # we will limit tmpDir usage to max 90%
+    freeTmp *= 0.9
+    bamSizes = []
+    for bamIndex in range(len(bamsToProcess)):
+        if countsFilled[bamIndex]:
+            continue
+        bam = bamsToProcess[bamIndex]
+        bamSizes.append(os.path.getsize(bam))
+    bamSizes.sort(reverse=True)
+    maxSamples = 0
+    sumOfSizes = 0
+    while (maxSamples < paraSamples):
+        sumOfSizes += bamSizes[maxSamples]
+        if (sumOfSizes > freeTmp):
+            break
+        else:
+            maxSamples += 1
+    if (maxSamples == 0):
+        logger.error("not enough space on tmpDir %s, cannot process the largest BAM (even alone)", tmpDir)
+        raise Exception("not enough space on tmpDir")
+    if (maxSamples < paraSamples):
+        logger.info("limiting samples processed in parallel due to low tmpDir space, increase space if possible")
+        paraSamples = maxSamples
+
+    # unsure how much RAM is needed for each sample, in our hands we don't have RAM issues.
+    # If OOM crashes occur: open an issue on github, we will need to estimate the RAM usage
+    # per sample, and limit paraSamples accordingly
+
+    # we use ceil() so we may slighty overconsume
+    coresPerSample = math.ceil(jobs / paraSamples)
+    return(paraSamples, coresPerSample)
+
+
+####################################################
 # main function
 # Arg: list of strings, eg sys.argv
 # If anything goes wrong, raise Exception("SOME EXPLICIT ERROR MESSAGE"), more details
@@ -302,18 +355,8 @@ def main(argv):
     else:
         #####################################################
         # decide how the work will be parallelized
-        # we are allowed to use jobs cores in total: we will process paraSamples samples in
-        # parallel, each sample will be processed using coresPerSample.
-        # in our tests 7 cores/sample provided the best overall performance, both with jobs=20
-        # and jobs=40. This probably depends on your hardware but in any case it's just a
-        # performance tuning parameter. However, more samples in parallel require more RAM
-        # and more space on tmpDir... So, if running out of RAM / tmpDir space, either run
-        # JACNEx with fewer --jobs, or increase targetCoresPerSample below.
-        # -> we target targetCoresPerSample coresPerSample, this is increased if we
-        #    have few samples to process (and we use ceil() so we may slighty overconsume)
-        targetCoresPerSample = 7
-        paraSamples = min(math.ceil(jobs / targetCoresPerSample), nbOfSamplesToProcess)
-        coresPerSample = math.ceil(jobs / paraSamples)
+        (paraSamples, coresPerSample) = calcParaSamples(jobs, bamsToProcess, countsFilled,
+                                                        nbOfSamplesToProcess, tmpDir)
         logger.info("%i new sample(s)  => will process %i in parallel, using up to %i cores/sample",
                     nbOfSamplesToProcess, paraSamples, coresPerSample)
 
