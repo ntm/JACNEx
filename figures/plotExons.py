@@ -157,10 +157,10 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
             logger.warning("ignoring bad regionToPlot %s, sample doesn't exist", regionStr)
             continue
         if chrom in autosomeExonNCLs:
-            clustType = 'A_'
+            clustType = 'A'
             exonNCLs = autosomeExonNCLs
         elif chrom in gonosomeExonNCLs:
-            clustType = 'G_'
+            clustType = 'G'
             exonNCLs = gonosomeExonNCLs
         else:
             logger.warning("ignoring bad regionToPlot %s, chrom doesn't exist", regionStr)
@@ -424,7 +424,10 @@ def plotExonsOneCNV(CNV, sampleID, exons, Ecodes, exonFPMs, samplesOfInterest,
 # CNVs must correspond to a single sample and be sorted by chrom-start.
 def plotCNVsOneSample(CNVs, sampleID, exons, Ecodes, exonFPMs, samplesOfInterest,
                       isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, plotDir):
-    plotFile = os.path.join(plotDir, sampleID + '_' + clusterID + '.pdf')
+    clustType = 'A'
+    if clusterID.startswith('G_'):
+        clustType = 'G'
+    plotFile = os.path.join(plotDir, sampleID + '_' + clustType + '.pdf')
     matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
     sampleIndex = CNVs[0][4]
     for CNV in CNVs:
