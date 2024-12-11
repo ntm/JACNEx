@@ -69,11 +69,11 @@ def parseArgs(argv):
     outDir = ""
     outFile = ""
     madeBy = ""
+    cnvPlotDir = ""
     # optional args with default values
     minGQ = 5.0
     padding = 10
     plotCNVs = False
-    cnvPlotDir = ""
     regionsToPlot = ""
     qcPlotDir = ""
     # jobs default: 80% of available cores
@@ -111,14 +111,14 @@ ARGUMENTS:
                 renamed *_old.vcf.gz, pre-existing *old* files will be squashed
     --outFile [str]: name of global merged VCF to create in outDir, pre-existing will be squashed
     --minGQ [float]: minimum Genotype Quality score, default : """ + str(minGQ) + """
-    --madeBy [str]: program name + version to print as "source=" in the produced VCF.
+    --madeBy [str]: program name + version to print as "source=" in the produced VCF
     --padding [int]: number of bps used to pad the exon coordinates, default : """ + str(padding) + """
     --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
     --cnvPlotDir [str]: subdir where per-sample plot files will be created if --plotCNVs,
                 pre-existing files are re-used if possible and rm'd if called without --plotCNVs
     --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
-    --qcPlotDir [str]: subdir (created if needed) where regionsToPlot plots will be produced
+    --qcPlotDir [str]: subdir where regionsToPlot plots will be produced
     --jobs [int]: cores that we can use, defaults to 80% of available cores ie """ + str(jobs) + "\n" + """
     -h , --help: display this help and exit\n"""
 
@@ -165,7 +165,7 @@ ARGUMENTS:
             raise Exception("unhandled option " + opt)
 
     #####################################################
-    # Check that the mandatory parameter is present
+    # Check that the mandatory parameters are present
     if countsFile == "":
         raise Exception("you must provide a counts file with --counts. Try " + scriptName + " --help.")
     elif (not os.path.isfile(countsFile)):
@@ -186,6 +186,14 @@ ARGUMENTS:
     elif (not os.path.isdir(outDir)):
         raise Exception("outDir " + outDir + " doesn't exist")
 
+    if cnvPlotDir == "":
+        raise Exception("you must provide a --cnvPlotDir (even without --plotCNVs).")
+    elif (not os.path.isdir(cnvPlotDir)):
+        raise Exception("cnvPlotDir " + cnvPlotDir + " doesn't exist")
+
+    if madeBy == "":
+        raise Exception("you must provide a madeBy string with --madeBy. Try " + scriptName + " --help")
+
     if outFile == "":
         raise Exception("you must provide an outFile with --outFile. Try " + scriptName + " --help.")
     else:
@@ -193,9 +201,6 @@ ARGUMENTS:
         if (os.path.isfile(odf)):
             logger.warning("outFile %s pre-exists, squashing it", odf)
             os.unlink(odf)
-
-    if madeBy == "":
-        raise Exception("you must provide a madeBy string with --madeBy. Try " + scriptName + " --help")
 
     #####################################################
     # Check other args
@@ -220,29 +225,14 @@ ARGUMENTS:
     except Exception:
         raise Exception("jobs must be a positive integer, not " + str(jobs))
 
-    if plotCNVs:
-        if cnvPlotDir == "":
-            raise Exception("you cannot provide --plotCNVs without --cnvPlotDir")
-        elif cnvPlotDir != "" and not os.path.isdir(cnvPlotDir):
-            try:
-                os.mkdir(cnvPlotDir)
-            except Exception as e:
-                raise Exception("cnvPlotDir " + cnvPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
-
-    if qcPlotDir != "" and regionsToPlot == "":
-        raise Exception("you cannot provide --qcPlotDir without --regionsToPlot")
-    elif regionsToPlot != "":
+    if regionsToPlot != "":
         # regionsToPlot: basic syntax check, discarding results;
         # if check fails, it raises an exception that just propagates to caller
         figures.plotExons.checkRegionsToPlot(regionsToPlot)
         if qcPlotDir == "":
             raise Exception("you cannot provide --regionsToPlot without --qcPlotDir")
-        elif not os.path.isdir(qcPlotDir):
-            # test qcPlotDir last so we don't mkdir unless all other args are OK
-            try:
-                os.mkdir(qcPlotDir)
-            except Exception as e:
-                raise Exception("qcPlotDir " + qcPlotDir + " doesn't exist and can't be mkdir'd: " + str(e))
+        elif (not os.path.isdir(qcPlotDir)):
+            raise Exception("qcPlotDir " + qcPlotDir + " doesn't exist")
 
     # AOK, return everything that's needed
     return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
@@ -315,7 +305,7 @@ def main(argv):
             logger.info("cluster %s is INVALID, skipping it", clusterID)
             continue
         elif clusterFound[clusterID] == 2:
-            # already logged (with copied filename) in checkPrevVCFs()
+            # reused and already logged (with copied filename) in checkPrevVCFs()
             continue
         elif len(fitWith[clusterID]) == 0:
             refClusters.append(clusterID)
@@ -366,7 +356,7 @@ def main(argv):
         # ploidy: all diploid except for gonosomes in Males, which are haploid
         isHaploid = False
         if (clusterID in clust2gender) and (clust2gender[clusterID] == 'M'):
-            # Male => samples are haploid for for the sex chroms
+            # Male => samples are haploid for the sex chroms
             isHaploid = True
             # Females are diploid for chrX and don't have any chrY => NOOP
 
@@ -586,19 +576,24 @@ def logExonStats(Ecodes, clusterID):
 def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, plotCNVs,
                   cnvPlotDir, clust2RTPs):
     # rename prev VCFs and plotFiles as *old
+    if outDir == "":
+        raise Exception("sanity: checkPrevVCFs called with empty outDir, this is ILLEGAL")
     try:
         for prevFile in glob.glob(outDir + '/CNVs_[AG]_*.vcf.gz'):
             newName = re.sub('.vcf.gz$', '_old.vcf.gz', prevFile)
             os.rename(prevFile, newName)
     except Exception as e:
         raise Exception("cannot rename prev VCF file as *old: %s", str(e))
+
+    if cnvPlotDir == "":
+        raise Exception("sanity: checkPrevVCFs called with empty cnvPlotDir, this is ILLEGAL")
     try:
-        if cnvPlotDir != "":
-            for prevFile in glob.glob(cnvPlotDir + '/*.pdf'):
-                newName = re.sub('.pdf$', '_old.pdf', prevFile)
-                os.rename(prevFile, newName)
+        for prevFile in glob.glob(cnvPlotDir + '/*.pdf'):
+            newName = re.sub('.pdf$', '_old.pdf', prevFile)
+            os.rename(prevFile, newName)
     except Exception as e:
         raise Exception("cannot rename prev cnvPlotFile as *old: %s", str(e))
+
     # populate clust2prev: key = custerID, value = prev VCF file of the same auto/gono
     # type, and whose samples exactly match those of clusterID (ignoring fitWiths for now),
     # and whose minGQ is identical, and (if plotCNVs) whose cnvPlotDir is identical
@@ -626,9 +621,8 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                     cnvPlotDirMatch = True
             elif line.startswith('#CHROM'):
                 if not (minGQmatch and cnvPlotDirMatch):
-                    logger.error("sanity: could not find ##JACNEx_minGQ or ##JACNEx_cnvPlotDir line in %s", prevFile)
-                    raise Exception("cannot find ##JACNEx_minGQ or ##JACNEx_cnvPlotDir header line in previous vcf %s",
-                                    prevFile)
+                    logger.error("sanity: could not find ##JACNEx_minGQ or ##JACNEx_cnvPlotDir in %s", prevFile)
+                    raise Exception("cannot find ##JACNEx_minGQ or ##JACNEx_cnvPlotDir header in %s", prevFile)
                 samples = line.rstrip().split("\t")
                 del samples[:9]
                 samples.sort()
@@ -694,13 +688,12 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                 raise Exception("cannot rename prev VCF (or cnvPlotFile?) %s as %s : %s",
                                 clust2prev[clustID], clust2vcf[clustID], str(e))
 
-    # remove *old files
+    # remove remaining *old files
     try:
         for oldFile in glob.glob(outDir + '/CNVs_[AG]_*_old.vcf.gz'):
             os.unlink(oldFile)
-        if cnvPlotDir != "":
-            for oldFile in glob.glob(cnvPlotDir + '/*_old.pdf'):
-                os.unlink(oldFile)
+        for oldFile in glob.glob(cnvPlotDir + '/*_old.pdf'):
+            os.unlink(oldFile)
     except Exception as e:
         raise Exception("cannot unlink old VCF / cnvPlotFile: %s", str(e))
 
