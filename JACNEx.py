@@ -132,7 +132,7 @@ Step 3 optional arguments, defaults should be OK:
         elif opt in ("--minGQ", "--regionsToPlot"):
             step3Args.extend([opt, value])
         elif opt in ("--plotCNVs"):
-            step3Args.extend([opt, value])
+            step3Args.extend([opt])
         else:
             raise Exception("unhandled option " + opt)
 
