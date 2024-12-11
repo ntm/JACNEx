@@ -345,6 +345,11 @@ def main(argv):
             thisQcPlotDir = os.path.join(qcPlotDir, 'ExonProfiles_' + dateStamp)
             if os.path.isdir(thisQcPlotDir):
                 raise Exception(stepNames[3] + " thisQcPlotDir " + thisQcPlotDir + " already exists")
+            else:
+                try:
+                    os.mkdir(thisQcPlotDir)
+                except Exception as e:
+                    raise Exception("thisQcPlotDir " + thisQcPlotDir + " can't be mkdir'd: " + str(e))
             step3Args.extend(["--qcPlotDir", thisQcPlotDir])
         step3Args.extend(["--cnvPlotDir", cnvPlotDir])
         step3Args.extend(["--madeBy", JACNEx_version])
