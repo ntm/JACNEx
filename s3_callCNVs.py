@@ -107,15 +107,14 @@ ARGUMENTS:
     --BPDir [str] : dir containing the breakpoint files, as produced by s1_countFrags.py
     --clusters [str]: TSV file with the cluster definitions, as produced by s2_clusterSamps.py
     --outDir [str]: subdir where VCF files will be created (one vcf.gz per cluster and one
-                global merged vcf.gz); the subdir must exist, pre-existing cluster VCFs will be
-                renamed *_old.vcf.gz, pre-existing *old* files will be squashed
+                global merged vcf.gz), pre-existing cluster VCFs will be reused if possible
     --outFile [str]: name of global merged VCF to create in outDir, pre-existing will be squashed
     --minGQ [float]: minimum Genotype Quality score, default : """ + str(minGQ) + """
     --madeBy [str]: program name + version to print as "source=" in the produced VCF
     --padding [int]: number of bps used to pad the exon coordinates, default : """ + str(padding) + """
     --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
     --cnvPlotDir [str]: subdir where per-sample plot files will be created if --plotCNVs,
-                pre-existing files are re-used if possible and rm'd if called without --plotCNVs
+                pre-existing files are re-used if possible
     --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
     --qcPlotDir [str]: subdir where regionsToPlot plots will be produced
@@ -412,7 +411,7 @@ def main(argv):
 # - clustFound: int, 0 if VCF + CNVplots didn't pre-exist, 1 if they did and were
 #   retained but we still must make plots for exonsToPlot
 # - plotCNVs: Bool, if True we must make exon-plots for each called CNV
-# - cnvPlotDir: subdir where one plotFile per sample will be created (if != "")
+# - cnvPlotDir: subdir where one plotFile per sample will be created (if plotCNVs)
 # - exonsToPlot: Dict, key==sampleID, value==list of exonIndexes to plot in qcPlotDir
 # - qcPlotDir: subdir where exonsToPlot plots will be created (if any)
 # - clusterID: string, for logging
@@ -437,8 +436,6 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
                      clusterID, refVcfFile)
         raise Exception("sanity: make VCFs of ref clusters first!")
 
-    ######## TODO take plotCNVs and clustFound into account!!!
-    
     logger.info("cluster %s - STARTING TO WORK", clusterID)
     startTime = time.time()
     startTimeCluster = startTime
@@ -508,8 +505,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     if refVcfFile != "":
         CNVs = callCNVs.callsFile.recalibrateGQs(CNVs, len(sampleIDs), refVcfFile, minGQ, clusterID)
 
-    # if requested: create one plotfile per sample with exon plots for every called CNV
-    if cnvPlotDir != "":
+    # if requested and not pre-existing: create exon plots for every called CNV
+    if plotCNVs and (clustFound == 0):
         figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
                                    isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
         thisTime = time.time()
@@ -527,9 +524,14 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     # set CN2means of NOCALL exons to 0 (AFTER plotting and BEFORE printCallsFile)
     CN2means[Ecodes < 0] = 0
 
-    # print CNVs for this cluster as a VCF file
-    callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs,
-                                      exons, BPDir, padding, madeBy, minGQ, cnvPlotDir)
+    # print CNVs for this cluster as a VCF file if it didn't pre-exist
+    if (clustFound == 0):
+        # without --plotCNVs, new clusters don't have plots
+        thisCnvPlotDir = ""
+        if plotCNVs:
+            thisCnvPlotDir = cnvPlotDir
+        callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs,
+                                          exons, BPDir, padding, madeBy, minGQ, thisCnvPlotDir)
 
     thisTime = time.time()
     logger.info("cluster %s - ALL DONE, total time: %.1fs", clusterID, thisTime - startTimeCluster)
@@ -559,15 +561,22 @@ def logExonStats(Ecodes, clusterID):
 # house-keeping of pre-existing VCFs and cnvPlotFiles, and check them for possible re-use:
 # - rename pre-existing prev VCFs and plotFiles as *old
 # - for each cluster: if its samples exactly match those in a prev VCF of the
-#   same type (auto/gono), and the minGQs are equal, and plotCNVs==False OR the new cnvPlotDir
-#   matches the old cnvPlotDir, and the FITWITH clusters (if any) are also in that situation:
+#   same type (auto/gono), and the minGQs are equal, and plotCNVs==False OR the
+#   cnvPlotDirs are equal, and the FITWITH clusters (if any) are also in that situation:
 #     -> rename the prev VCF back as newVCF
-#     -> if plotCNVs==True, also rename the prev plotFiles back (filename won't change)
+#     -> rename any corresponding prev plotFiles back (filename won't change)
 #     -> if the cluster has RegionsToPlot, set clusterFound[clusterID] = 1
 #     -> else the cluster doesn't have any RegionsToPlot, set clusterFound[clusterID] = 2
 # - if any of the above conditions is not satisfied, plotFiles and VCFs must be remade
 #     -> set clusterFound[clusterID] = 0
 # - remove any remaining  *old VCFs and plotFiles
+#
+# NOTES on cnvPlotDir:
+# - if it has changed, the old cnvPlotDir is ignored and the VCF + plotFiles will
+#   be remade if plotCNVs==True (even if the cluster didn't actually change)
+# - if plotCNVs==False: new VCFs will have cnvPlotDir="" and no plotFiles, but any
+#   re-used VCFs will keep their cnvPlotDir= line, and if they were produced with
+#   plotCNVs==True their plotFiles will be re-used too
 #
 # Returns: clusterFound, key==clusterID, value is:
 # 0 if no matching cluster was found
@@ -605,20 +614,25 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
         if (not plotCNVs):
             cnvPlotDirMatch = True
         for line in prevFH:
+            # below ##JACNEx_minGQ= strings must exactly match those we produce in printCallsFile()
             if line.startswith('##JACNEx_minGQ='):
-                # these JACNEx_minGQ strings must exactly match those we produce in printCallsFile()
+                minGQmatch = True
                 if line.rstrip() != ('##JACNEx_minGQ=' + str(minGQ)):
                     # minGQ mismatch, cannot reuse this file
                     break
+            # again, below  ##JACNEx_cnvPlotDir= must exactly match printCallsFile()
+            elif line.startswith('##JACNEx_cnvPlotDir='):
+                cnvPlotDirMatch = True
+                if plotCNVs:
+                    if line.rstrip() != ('##JACNEx_cnvPlotDir=' + cnvPlotDir):
+                        # no previous plots ("") or cnvPlotDir mismatch, cannot reuse this VCF
+                        break
+                    # else plots requested but cnvPlotDirs match, can reuse
                 else:
-                    minGQmatch = True
-            elif (plotCNVs and line.startswith('##JACNEx_cnvPlotDir=')):
-                # again this must exactly match printCallsFile()
-                if line.rstrip() != ('##JACNEx_cnvPlotDir=' + cnvPlotDir):
-                    # cnvPlotDir mismatch, cannot reuse this VCF file
-                    break
-                else:
-                    cnvPlotDirMatch = True
+                    # plots not requested: reuse if prev had no plots or if cnvPlotDirs match
+                    if ((line.rstrip() != '##JACNEx_cnvPlotDir=') and
+                        (line.rstrip() != ('##JACNEx_cnvPlotDir=' + cnvPlotDir))):
+                        break
             elif line.startswith('#CHROM'):
                 if not (minGQmatch and cnvPlotDirMatch):
                     logger.error("sanity: could not find ##JACNEx_minGQ or ##JACNEx_cnvPlotDir in %s", prevFile)
@@ -662,22 +676,20 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
         if prevOK:
             try:
                 os.rename(clust2prev[clustID], clust2vcf[clustID])
-                # prev plotFiles can be retained if they exist, even if plotCNVs==False
-                if cnvPlotDir != "":
-                    if os.path.basename(clust2prev[clustID]).startswith('CNVs_A_'):
-                        clustType = 'A'
-                    else:
-                        clustType = 'G'
-                    for sampleID in clust2samps[clustID]:
-                        prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_old.pdf')
-                        newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '.pdf')
-                        if os.path.isfile(prevPF):
-                            os.rename(prevPF, newPF)
-                        elif plotCNVs:
-                            logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
-                                         clustID, os.path.basename(clust2prev[clustID]), prevPF)
-                            raise Exception("previous plotFile %s should exist but doesn't", prevPF)
-                        # else prev plotFile doesn't exist but plotCNVs==False => NOOP
+                # prev plotFiles are retained if they exist, even if plotCNVs==False
+                clustType = 'A'
+                if clustID.startswith('G_'):
+                    clustType = 'G'
+                for sampleID in clust2samps[clustID]:
+                    prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_old.pdf')
+                    newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '.pdf')
+                    if os.path.isfile(prevPF):
+                        os.rename(prevPF, newPF)
+                    elif plotCNVs:
+                        logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
+                                     clustID, os.path.basename(clust2prev[clustID]), prevPF)
+                        raise Exception("previous plotFile %s should exist but doesn't", prevPF)
+                    # else prev plotFile doesn't exist but plotCNVs==False => NOOP
                 logger.info("cluster %s exactly matches previous VCF %s, reusing it (and cnvPlotFiles if any)",
                             clustID, os.path.basename(clust2prev[clustID]))
                 if (clustID in clust2RTPs):
