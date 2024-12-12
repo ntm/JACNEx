@@ -85,7 +85,7 @@ Given fragment counts (from s1_countFrags.py) and clusters (from s2_clusterSamps
 call CNVs and print results as gzipped VCF files in --outDir.
 The method consists in constructing an HMM whose parameters are fitted in a data-driven
 manner for each cluster. It comprises the following steps:
-    - fit CN0 model (half-Gaussian) for all exons, using intergenic pseudo-exon FPMs;
+    - fit CN0 model (truncated half-normal) for all exons, using intergenic pseudo-exon FPMs;
     - fit CN2 model (Gaussian) for each exon using all samples in cluster (including
     FITWITHs); the CN1 (normal) and CN3+ (logNormal) models are then parameterized
     based on the CN2 fitted parameters;
@@ -442,7 +442,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including
     # FITWITHs).
-    # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
+    # Currently CN0 is modeled with a truncated half-normal distribution (parameter: CN0sigma).
     # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
     # from CN0. This will be useful later for identifying NOCALL exons.
     (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCNO(intergenicFPMs)

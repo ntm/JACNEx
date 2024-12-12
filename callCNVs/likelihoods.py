@@ -175,7 +175,7 @@ def calcLikelihoods(FPMs, CN0sigma, Ecodes, CN2means, CN2sigmas, isHaploid, forP
     # NOTE: calculating likelihoods for all exons, taking advantage of numpy vectorization;
     # afterwards we set them to -1 for NOCALL exons
 
-    # CN0 model: half-normal distribution with mode=0
+    # CN0 model, as defined in cn0PDF()
     likelihoods[:, :, 0] = cn0PDF(FPMs, CN0sigma)
 
     # CN1:
@@ -237,7 +237,8 @@ def gaussianPDF(FPMs, mu, sigma):
 ############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN0 at every datapoint in FPMs.
-# Our current CN0 model is a half-normal distribution of parameter sigma.
+# Our current CN0 model is a half-normal distribution of parameter sigma,
+# truncated at 4*sigma (corresponds to CDF > 0.99993)
 #
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples
@@ -245,13 +246,15 @@ def gaussianPDF(FPMs, mu, sigma):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
 def cn0PDF(FPMs, sigma):
-    # return numpy.exp(-0.5 * (FPMs.T / sigma)**2) * (2 / sigma / SQRT_2PI)
-    res = FPMs.T / sigma
+    # truncate at 4*sigma: mask to avoid useless computations, this also copies the data
+    res = numpy.ma.masked_greater_equal(FPMs.T, 4 * sigma)
+    # numpy.exp(-0.5 * (res / sigma)**2) * (2 / sigma / SQRT_2PI)
+    res /= sigma
     res *= res
     res /= -2
     res = numpy.exp(res)
     res *= 2 / sigma / SQRT_2PI
-    return(res)
+    return (res.filled(fill_value=0.0))
 
 
 ############################################
