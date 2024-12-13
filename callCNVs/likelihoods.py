@@ -71,7 +71,7 @@ def fitCNO(intergenicFPMs):
 # - CN2 model isn't supported by 50% or more of the samples
 # - CN2 Gaussian can't be clearly distinguished from CN0 model (see minZscore)
 # - CN1 Gaussian (in diploids only) can't be clearly distinguished
-#   from CN0 model (E==1)
+#   from CN0 or CN2 model (E==1)
 #
 # Args:
 # - FPMs: numpy 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is
@@ -86,7 +86,7 @@ def fitCNO(intergenicFPMs):
 #   E==-2 if robustGaussianFit failed
 #   E==-3 if low support for CN2 model
 #   E==-4 if CN2 is too close to CN0
-#   E==1  if CN1 is too close to CN0 but CN2 isn't (in diploids only)
+#   E==1  if CN1 is too close to CN0 or to CN2 but CN2 isn't (in diploids only)
 #   E==0  if all QC criteria pass
 # - the mean and stdev of the CN2 model, or (1,1) if we couldn't fit CN2,
 #   ie Ecode==-1 or -2
@@ -130,9 +130,14 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
                     # CN2 too close to CN0
                     Ecodes[ei] = -4
 
-                # in diploids: prefer if CN1 is also at least minZscore sigmas from fpmCn0
+                # in diploids: prefer if CN1 is also at least minZscore sigmas_cn1 from fpmCn0
                 elif (not isHaploid) and ((mu / 2 - minZscore * sigma / 2) <= fpmCn0):
                     # CN1 too close to CN0
+                    Ecodes[ei] = 1
+                # in diploids, also prefer if CN1 is not too close to CN2: require at least
+                # 2 * sigma_cn2 between mu_cn1 and mu_cn2, ie 2*sigma < mu/2 <=> 4*sigma < mu
+                elif (not isHaploid) and ((4 * sigma) >= mu):
+                    # CN1 too close to CN2
                     Ecodes[ei] = 1
 
                 else:
@@ -187,7 +192,7 @@ def calcLikelihoods(FPMs, CN0sigma, Ecodes, CN2means, CN2sigmas, isHaploid, forP
         # than 2) -> Normal(CN2mu/2, CN2sigma/2)
         likelihoods[:, :, 1] = gaussianPDF(FPMs, CN2means / 2, CN2sigmas / 2)
         if not forPlots:
-            # exons where CN1 is too close to CN0 but CN2 isn't:
+            # exons where CN1 is too close to CN0/CN2 but CN2 isn't:
             likelihoods[:, Ecodes == 1, 1] = 0
 
     # CN2 model: the fitted CN2 Gaussian
