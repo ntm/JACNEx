@@ -459,7 +459,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     logger.info("cluster %s - done fitting CN0 and CN2 models to data", clusterID)
     # log stats with the percentages of exons in each QC class
-    logExonStats(Ecodes, clusterID)
+    # actually NO, I don't find this useful for the end-user
+    # logExonStats(Ecodes, clusterID)
 
     # we only want to calculate likelihoods for the samples of interest (not the FITWITHs)
     # => create a view with all FPMs, then squash with the FPMs of SOIs if needed
