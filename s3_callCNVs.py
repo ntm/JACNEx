@@ -507,7 +507,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # if requested and not pre-existing: create exon plots for every called CNV
     if plotCNVs and (clustFound == 0):
-        figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+        figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
                                    isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
         thisTime = time.time()
         logger.info("cluster %s - done plotCNVs in %.1fs", clusterID, thisTime - startTime)
@@ -515,7 +515,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # plot exonsToPlot if any
     if exonsToPlot:
-        figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, Ecodes, exonFPMs, samplesOfInterest,
+        figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
                                       isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
         thisTime = time.time()
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
