@@ -686,11 +686,8 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                     newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '.pdf')
                     if os.path.isfile(prevPF):
                         os.rename(prevPF, newPF)
-                    elif plotCNVs:
-                        logger.error("sanity: cluster %s matches %s but prev plotFile %s not found",
-                                     clustID, os.path.basename(clust2prev[clustID]), prevPF)
-                        raise Exception("previous plotFile %s should exist but doesn't", prevPF)
-                    # else prev plotFile doesn't exist but plotCNVs==False => NOOP
+                    # elif plotCNVs: no prev plotFile, this can happen when a sample has no called CNVs
+                    # else: prev plotFile doesn't exist but plotCNVs==False => NOOP
                 logger.info("cluster %s exactly matches previous VCF %s, reusing it (and cnvPlotFiles if any)",
                             clustID, os.path.basename(clust2prev[clustID]))
                 if (clustID in clust2RTPs):
