@@ -246,15 +246,15 @@ def gaussianPDF(FPMs, mu, sigma):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
 def cn0PDF(FPMs, sigma):
-    # truncate at 4*sigma: mask to avoid useless computations, this also copies the data
-    res = numpy.ma.masked_greater_equal(FPMs.T, 4 * sigma)
-    # numpy.exp(-0.5 * (res / sigma)**2) * (2 / sigma / SQRT_2PI)
-    res /= sigma
+    # numpy.exp(-0.5 * (X / sigma)**2) * (2 / sigma / SQRT_2PI)
+    res = FPMs.T / sigma
     res *= res
     res /= -2
     res = numpy.exp(res)
     res *= 2 / sigma / SQRT_2PI
-    return (res.filled(fill_value=0.0))
+    # truncate at 4*sigma
+    res[FPMs.T >= 4 * sigma] = 0.0
+    return (res)
 
 
 ############################################
