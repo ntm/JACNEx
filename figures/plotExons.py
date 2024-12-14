@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 #   as the corresponding samplesOfInterest columns in exonFPMs
 # - exons (list[str, int, int, str]): exon information
 # - padding (int): to adjust the coords in titles
-# - Ecodes (numpy.ndarray[ints]): exons filtering codes
+# - Ecodes (numpy.ndarray[ints]): exon filtering codes
 # - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters)
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
@@ -205,7 +205,7 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 #   as the corresponding samplesOfInterest columns in exonFPMs
 # - exons (list[str, int, int, str]): exon information.
 # - padding (int): to adjust the coords in titles
-# - Ecodes (numpy.ndarray[ints]): exons filtering codes.
+# - Ecodes (numpy.ndarray[ints]): exon filtering codes.
 # - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters, these are
 #   used for fitting the CN2)

@@ -446,18 +446,16 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
     # from CN0. This will be useful later for identifying NOCALL exons.
     (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCNO(intergenicFPMs)
-    thisTime = time.time()
-    logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f, in %.1fs",
-                 clusterID, CN0sigma, fpmCn0, thisTime - startTime)
-    startTime = thisTime
+    logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
+                 clusterID, CN0sigma, fpmCn0)
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
     (Ecodes, CN2means, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, clusterID, fpmCn0, isHaploid)
-    thisTime = time.time()
-    logger.debug("cluster %s - done fitCN2 in %.1fs", clusterID, thisTime - startTime)
-    startTime = thisTime
+    logger.debug("cluster %s - done fitCN2", clusterID)
 
-    logger.info("cluster %s - done fitting CN0 and CN2 models to data", clusterID)
+    thisTime = time.time()
+    logger.info("cluster %s - done fitting CN0 and CN2 models to data, in %.1fs", clusterID, thisTime - startTime)
+    startTime = thisTime
     # log stats with the percentages of exons in each QC class
     # actually NO, I don't find this useful for the end-user
     # logExonStats(Ecodes, clusterID)
