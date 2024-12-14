@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 # - likelihoods: numpy 3D-array of floats of size nbSamples * nbExons * nbStates,
 #   likelihoods[s,e,cn] is the likehood of state cn for exon e in sample s
 #   (NOCALL exons must have all likelihoods == -1)
+# - Ecodes: exon filtering codes
 # - samples: list of nbSamples sampleIDs (==strings)
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
 # - transMatrix (ndarray[floats] dim nbStates*nbStates): base transition probas between states
@@ -54,7 +55,7 @@ logger = logging.getLogger(__name__)
 # [CNVType, firstExonIndex, lastExonIndex, qualityScore, sampleIndex]
 # where firstExonIndex and lastExonIndex are indexes in the provided exons,
 # and sampleIndex is the index in the provided samples
-def viterbiAllSamples(likelihoods, samples, exons, transMatrix, priors, dmax, minGQ, jobs):
+def viterbiAllSamples(likelihoods, Ecodes, samples, exons, transMatrix, priors, dmax, minGQ, jobs):
     CNVs = []
 
     # sanity checks
@@ -87,8 +88,8 @@ def viterbiAllSamples(likelihoods, samples, exons, transMatrix, priors, dmax, mi
     ##################
     with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
         for si in range(len(samples)):
-            futureRes = pool.submit(viterbiOneSample, likelihoods[si, :, :], si, samples[si],
-                                    exons, transMatrix, priors, dmax, minGQ)
+            futureRes = pool.submit(viterbiOneSample, likelihoods[si, :, :], Ecodes, si,
+                                    samples[si], exons, transMatrix, priors, dmax, minGQ)
             futureRes.add_done_callback(sampleDone)
 
     return(CNVs)
@@ -115,6 +116,7 @@ def viterbiAllSamples(likelihoods, samples, exons, transMatrix, priors, dmax, mi
 # Args:
 # - likelihoods (ndarray[floats] dim nbExons*nbStates): emission likelihoods of
 #   each state for each exon for one sample.
+# - Ecodes: exon filtering codes
 # - sampleIndex [int] (for returned CNVs)
 # - sampleID [str] (for log messages)
 # - exons [list of lists[str, int, int, str]]: exon infos [chr, START, END, EXONID].
@@ -126,7 +128,7 @@ def viterbiAllSamples(likelihoods, samples, exons, transMatrix, priors, dmax, mi
 # Returns:
 # - CNVs (list of list[int, int, int, float, int]): list of called CNVs,
 #   a CNV is a list [CNVType, firstExonIndex, lastExonIndex, qualityScore, sampleIndex].
-def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, priors, dmax, minGQ):
+def viterbiOneSample(likelihoods, Ecodes, sampleIndex, sampleID, exons, transMatrix, priors, dmax, minGQ):
     try:
         CNVs = []
         nbStates = len(transMatrix)
@@ -139,6 +141,8 @@ def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, pri
         # chrom and end of previous exon - init at -dmax so first exon uses the priors
         prevChrom = exons[0][0]
         prevEnd = -dmax
+        # Ecode of prev exon (0==CALLED or 1==CALLED-WITHOUT-CN1, no-calls are skipped)
+        prevEcode = 0
 
         # temp data structures used by buildCNVs() and reset whenever it is called,
         # see buildCNVs() spec for info
@@ -159,6 +163,7 @@ def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, pri
                 probsPrev[2] = 1
                 prevChrom = exons[exonIndex][0]
                 prevEnd = -dmax
+                prevEcode = 0
                 (calledExons, path, bestPathProbas, CN2FromCN2Probas) = ([], [], [], [])
 
             # accumulators with current exon data for populating the buildCNVs() structures
@@ -175,16 +180,26 @@ def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, pri
             for currentState in range(nbStates):
                 probMax = 0
                 prevStateMax = 2
-                for prevState in range(nbStates):
-                    # probability of path coming from prevState to currentState
-                    prob = (probsPrev[prevState] *
-                            adjustedTransMatrix[prevState, currentState] *
-                            likelihoods[exonIndex, currentState])
-                    if prob > probMax:
-                        probMax = prob
-                        prevStateMax = prevState
-                probsCurrent[currentState] = probMax
-                bestPrevState[currentState] = prevStateMax
+                if (Ecodes[exonIndex] == 1) and (currentState == 1):
+                    # current exon is CALLED-WITHOUT-CN1: it can only be CN1 if extending a HET-DEL,
+                    # it cannot start a new one
+                    probsCurrent[1] = probsPrev[1] * adjustedTransMatrix[1, 1] * likelihoods[exonIndex, 1]
+                    bestPrevState[1] = 1
+                else:
+                    for prevState in range(nbStates):
+                        if (prevEcode == 1) and (prevState == 1) and (currentState != 1):
+                            # previous exon was CALLED-WITHOUT-CN1: its CN1 best path (ie HET-DEL) can only
+                            # be extended as a longer HET-DEL, ie the path can only go to CN1 in the current exon
+                            continue
+                        # probability of path coming from prevState to currentState
+                        prob = (probsPrev[prevState] *
+                                adjustedTransMatrix[prevState, currentState] *
+                                likelihoods[exonIndex, currentState])
+                        if prob > probMax:
+                            probMax = prob
+                            prevStateMax = prevState
+                    probsCurrent[currentState] = probMax
+                    bestPrevState[currentState] = prevStateMax
 
             # if all best paths for current exon have zero probability (ie they all underflowed)
             if not probsCurrent.any():
@@ -207,6 +222,7 @@ def viterbiOneSample(likelihoods, sampleIndex, sampleID, exons, transMatrix, pri
             # OK, update all structures and move to next exon
             numpy.copyto(probsPrev, probsCurrent)
             prevEnd = exons[exonIndex][2]
+            prevEcode = Ecodes[exonIndex]
             calledExons.append(exonIndex)
             path.append(bestPrevState)
             bestPathProbas.append(probsCurrent)

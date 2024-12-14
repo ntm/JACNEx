@@ -494,7 +494,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     startTime = thisTime
 
     # call CNVs with the Viterbi algorithm
-    CNVs = callCNVs.viterbi.viterbiAllSamples(likelihoods, sampleIDs, exons, transMatrix,
+    CNVs = callCNVs.viterbi.viterbiAllSamples(likelihoods, Ecodes, sampleIDs, exons, transMatrix,
                                               priors, adjustTransMatDMax, minGQ, jobs)
     thisTime = time.time()
     logger.info("cluster %s - done viterbiAllSamples in %.1fs", clusterID, thisTime - startTime)
