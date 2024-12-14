@@ -152,7 +152,7 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
 # for each exon (==row of FPMs):
 # - if Ecodes[ei] >= 0, calculate and fill likelihoods for CN0, CN1, CN2, CN3+
 # - else exon is NOCALL => set likelihoods to -1 (except if forPlots)
-# NOTE: if isHapoid or Ecodes[ei]==1, likelihoods[CN1]=0 (except if forPlots).
+# NOTE: if isHapoid, likelihoods[CN1]=0.
 #
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM count
@@ -191,9 +191,6 @@ def calcLikelihoods(FPMs, CN0sigma, Ecodes, CN2means, CN2sigmas, isHaploid, forP
         # in diploids: rescale the CN2 Gaussian by factor 1/2 (model a single copy rather
         # than 2) -> Normal(CN2mu/2, CN2sigma/2)
         likelihoods[:, :, 1] = gaussianPDF(FPMs, CN2means / 2, CN2sigmas / 2)
-        if not forPlots:
-            # exons where CN1 is too close to CN0/CN2 but CN2 isn't:
-            likelihoods[:, Ecodes == 1, 1] = 0
 
     # CN2 model: the fitted CN2 Gaussian
     likelihoods[:, :, 2] = gaussianPDF(FPMs, CN2means, CN2sigmas)
