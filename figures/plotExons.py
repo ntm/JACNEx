@@ -281,7 +281,7 @@ def getLabels(isHaploid, CN0Sigma, CN2Mean, CN2Sigma):
 def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
              isHaploid, CN0sigma, CN2means, CN2sigmas, CNV, clusterID, matplotFile):
     CNcolors = ['red', 'orange', 'green', 'purple']
-    ECodeSTR = {0: 'CALLED', 1: 'CALLED-WITHOUT-CN1', -1: 'NOCALL:NOT-CAPTURED',
+    ECodeSTR = {0: 'CALLED', 1: 'CALLED-CN1-RESTRICTED', -1: 'NOCALL:NOT-CAPTURED',
                 -2: 'NOCALL:FIT-CN2-FAILED', -3: 'NOCALL:CN2-LOW-SUPPORT', -4: 'NOCALL:CN0-TOO-CLOSE'}
 
     # don't plot NOT-CAPTURED exons, there's nothing interesting to plot
@@ -345,7 +345,7 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
     for cnState in range(4):
         if (labels[cnState] != ''):
             if (Ecodes[thisExon] < 0) or ((Ecodes[thisExon] == 1) and (cnState == 1)):
-                # dashed lines for all CNs of NOCALL exons and for CN1 of CALL-WITHOUT-CN1 exons
+                # dashed lines for all CNs of NOCALL exons and for CN1 of CALL-CN1-RESTRICTED exons
                 linestyleFIT = 'dashed'
             else:
                 linestyleFIT = 'solid'

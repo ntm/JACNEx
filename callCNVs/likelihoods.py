@@ -70,8 +70,8 @@ def fitCNO(intergenicFPMs):
 # - fitting fails (exon is very atypical, can't make any calls)
 # - CN2 model isn't supported by 50% or more of the samples
 # - CN2 Gaussian can't be clearly distinguished from CN0 model (see minZscore)
-# - CN1 Gaussian (in diploids only) can't be clearly distinguished
-#   from CN0 or CN2 model (E==1)
+# - CN1 Gaussian (in diploids only) can't be clearly distinguished from
+#   CN0 or CN2 model (E==1 ie CALLED-CN1-RESTRICTED, see viterbi.py)
 #
 # Args:
 # - FPMs: numpy 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is
@@ -135,7 +135,7 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
                     # CN1 too close to CN0
                     Ecodes[ei] = 1
                 # in diploids, also prefer if CN1 is not too close to CN2: require at least
-                # 2 * sigma_cn2 between mu_cn1 and mu_cn2, ie 2*sigma < mu/2 <=> 4*sigma < mu
+                # 2 * sigma_cn2 between mu_cn1 and mu_cn2, ie 2*sigma < mu/2, ie 4*sigma < mu
                 elif (not isHaploid) and ((4 * sigma) >= mu):
                     # CN1 too close to CN2
                     Ecodes[ei] = 1
@@ -160,7 +160,7 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
 # - CN0sigma: as returned by fitCN0()
 # - Ecodes, CN2means, CN2sigmas: as returned by fitCN2()
 # - isHaploid: boolean (used in the CN3+ model and for zeroing CN1 likelihoods)
-# - forPlots: boolean if True don't set likelihoods to 0 / -1 for bad Ecodes
+# - forPlots: boolean if True don't set likelihoods to -1 for NOCALL exons
 #
 # Returns likelihoods (allocated here):
 #   numpy 3D-array of floats of size nbSamples * nbExons * nbStates,

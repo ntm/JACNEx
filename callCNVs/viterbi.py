@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 # viterbiAllSamples:
 # given a fully specified HMM, Call CNVs with viterbiOneSample() in parallel for
 # each sample in samples (==nbSamples in likelihoods).
+# See viterbiOneSample() top-of-function comments for methodology info.
 #
 # Args:
 # - likelihoods: numpy 3D-array of floats of size nbSamples * nbExons * nbStates,
@@ -113,6 +114,9 @@ def viterbiAllSamples(likelihoods, Ecodes, samples, exons, transMatrix, priors, 
 #   a power law until they reach the prior probabilities at dist dmax;
 # - emission likelihoods of the sample's FPM in each state and for each exon.
 #
+# NOTE: Ecodes==1 ie CALLED-CN1-RESTRICTED exons can be in any state (including CN1),
+# but they cannot start or end a CN1 event, only extend it
+#
 # Args:
 # - likelihoods (ndarray[floats] dim nbExons*nbStates): emission likelihoods of
 #   each state for each exon for one sample.
@@ -141,7 +145,7 @@ def viterbiOneSample(likelihoods, Ecodes, sampleIndex, sampleID, exons, transMat
         # chrom and end of previous exon - init at -dmax so first exon uses the priors
         prevChrom = exons[0][0]
         prevEnd = -dmax
-        # Ecode of prev exon (0==CALLED or 1==CALLED-WITHOUT-CN1, no-calls are skipped)
+        # Ecode of prev exon (0==CALLED or 1==CALLED-CN1-RESTRICTED, no-calls are skipped)
         prevEcode = 0
 
         # temp data structures used by buildCNVs() and reset whenever it is called,
@@ -181,14 +185,14 @@ def viterbiOneSample(likelihoods, Ecodes, sampleIndex, sampleID, exons, transMat
                 probMax = 0
                 prevStateMax = 2
                 if (Ecodes[exonIndex] == 1) and (currentState == 1):
-                    # current exon is CALLED-WITHOUT-CN1: it can only be CN1 if extending a HET-DEL,
+                    # current exon is CALLED-CN1-RESTRICTED: it can only be CN1 if extending a HET-DEL,
                     # it cannot start a new one
                     probsCurrent[1] = probsPrev[1] * adjustedTransMatrix[1, 1] * likelihoods[exonIndex, 1]
                     bestPrevState[1] = 1
                 else:
                     for prevState in range(nbStates):
                         if (prevEcode == 1) and (prevState == 1) and (currentState != 1):
-                            # previous exon was CALLED-WITHOUT-CN1: its CN1 best path (ie HET-DEL) can only
+                            # previous exon was CALLED-CN1-RESTRICTED: its CN1 best path (ie HET-DEL) can only
                             # be extended as a longer HET-DEL, ie the path can only go to CN1 in the current exon
                             continue
                         # probability of path coming from prevState to currentState

@@ -552,7 +552,7 @@ def logExonStats(Ecodes, clusterID):
         statusCnt[s] = numpy.count_nonzero(Ecodes == 1 - s)
     statusCnt *= (100 / totalCnt)
     toPrint = "cluster " + clusterID + " - exon QC summary:\n\t"
-    toPrint += "%.1f%% CALLED, %.1f%% CALLED-WITHOUT-CN1, " % (statusCnt[1], statusCnt[0])
+    toPrint += "%.1f%% CALLED, %.1f%% CALLED-CN1-RESTRICTED, " % (statusCnt[1], statusCnt[0])
     toPrint += "%.1f%% NOT-CAPTURED,\n\t%.1f%% FIT-CN2-FAILED, " % (statusCnt[2], statusCnt[3])
     toPrint += "%.1f%% CN2-LOW-SUPPORT, %.1f%% CN0-TOO-CLOSE" % (statusCnt[4], statusCnt[5])
     logger.info("%s", toPrint)
