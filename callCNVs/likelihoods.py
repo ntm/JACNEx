@@ -97,6 +97,11 @@ def fitCNO(intergenicFPMs):
 def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
+    nbSOIs = samplesOfInterest.sum()
+    # primaryCluster: True iff this cluster doesn't have FITWITHs
+    primaryCluster = True
+    if nbSamples != nbSOIs:
+        primaryCluster = False
 
     Ecodes = numpy.zeros(nbExons, dtype=numpy.byte)
     CN2means = numpy.ones(nbExons, dtype=numpy.float64)
@@ -120,13 +125,16 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
                 # if we get here, (mu, sigma) are OK:
                 (CN2means[ei], CN2sigmas[ei]) = (mu, sigma)
 
-                # require at least minFracSamps samples of interest within sdLim sigmas of mu
-                minSamps = nbSamples * minFracSamps
+                # require at least minFracSamps samples (of interest) within sdLim sigmas of mu
+                minSamps = int(nbSOIs * minFracSamps)
                 sdLim = 2
-                samplesUnderCN2 = numpy.sum(numpy.logical_and(FPMs[ei, samplesOfInterest] - mu - sdLim * sigma < 0,
-                                                              FPMs[ei, samplesOfInterest] - mu + sdLim * sigma > 0))
-                if samplesUnderCN2 < minSamps:
-                    # low support for CN2
+                if primaryCluster:
+                    samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, :] - mu) < sdLim * sigma)
+                else:
+                    samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, samplesOfInterest] - mu) < sdLim * sigma)
+
+                if (nbSOIs > 1) and (samplesUnderCN2 < minSamps):
+                    # low support for CN2, but can only be applied if at least 2 samples
                     Ecodes[ei] = -3
 
                 # require CN2 to be at least minZscore sigmas from fpmCn0
