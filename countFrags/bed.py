@@ -193,7 +193,8 @@ def sexChromosomes():
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
 # -Ecodes: 1D numpy.ndarray size=len(exons) value < 0 if exon is NOCALL
 #
-# Returns the tuple (baseTransMatMaxIED, adjustTransMatDMax).
+# Returns the tuple (baseTransMatMaxIED, adjustTransMatDMax), or (0,0) if there is
+# at most one CALLED exon per chrom
 def calcIEDCutoffs(exons, Ecodes):
     # baseTransMatQuantile: inter-exon distance quantile to use as cutoff when building
     # the base transition matrix, hard-coded here. See buildBaseTransMatrix()
@@ -220,11 +221,16 @@ def calcIEDCutoffs(exons, Ecodes):
             nextIEDindex += 1
             prevEnd = exons[ei][2]
 
-    # resize to ignore NOCALL exons and first exons on chorms
+    # resize to ignore NOCALL exons and first exons on chroms
     interExonDistances.resize(nextIEDindex, refcheck=False)
 
-    # calculate quantiles and round to int
-    return(numpy.quantile(interExonDistances, (baseTransMatQuantile, adjustTransMatQuantile)).astype(int))
+    if (nextIEDindex == 0):
+        # at most one CALLED exon per chrom, explicitely return (0,0)
+        # (numpy.quantile errors out if array is empty...)
+        return(0, 0)
+    else:
+        # calculate quantiles and round to int
+        return(numpy.quantile(interExonDistances, (baseTransMatQuantile, adjustTransMatQuantile)).astype(int))
 
 
 ####################################################
