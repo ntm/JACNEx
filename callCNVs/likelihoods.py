@@ -68,7 +68,7 @@ def fitCNO(intergenicFPMs):
 # most samples are CN2), and apply  the following QC criteria, testing if:
 # - exon isn't captured (median FPM <= fpmCn0)
 # - fitting fails (exon is very atypical, can't make any calls)
-# - CN2 model isn't supported by 50% or more of the samples
+# - CN2 model isn't supported by at least minFracSamps of the samplesOfInterest
 # - CN2 Gaussian can't be clearly distinguished from CN0 model (see minZscore)
 # - CN1 Gaussian (in diploids only) can't be clearly distinguished from
 #   CN0 or CN2 model (E==1 ie CALLED-CN1-RESTRICTED, see viterbi.py)
@@ -76,6 +76,8 @@ def fitCNO(intergenicFPMs):
 # Args:
 # - FPMs: numpy 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is
 #   the FPM-normalized count for exon e in sample s
+# - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the
+#   sample is in the cluster of interest (vs being in a FITWITH cluster)
 # - clusterID: name of cluster (for logging)
 # - fpmCn0, isHaploid: used for the QC criteria
 #
@@ -92,7 +94,7 @@ def fitCNO(intergenicFPMs):
 #   ie Ecode==-1 or -2
 #   [NOTE: (mean,stdev)==(1,1) allows to use vectorized gaussianPDF() and
 #   cn3PDF() without DIVBYZERO errors on NOCALL exons]
-def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
+def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
 
@@ -100,8 +102,10 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
     CN2means = numpy.ones(nbExons, dtype=numpy.float64)
     CN2sigmas = numpy.ones(nbExons, dtype=numpy.float64)
 
-    # hard-coded min Z-score parameter for "too close to CN0"
+    # hard-coded min Z-score parameter for "too close to CN0/CN2"
     minZscore = 2
+    # hard-coded fraction of samples of interest that must be "under" the CN2
+    minFracSamps = 0.5
 
     for ei in range(nbExons):
         if numpy.median(FPMs[ei, :]) <= fpmCn0:
@@ -116,11 +120,11 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
                 # if we get here, (mu, sigma) are OK:
                 (CN2means[ei], CN2sigmas[ei]) = (mu, sigma)
 
-                # require at least minSamps samples within sdLim sigmas of mu
-                minSamps = nbSamples * 0.5
+                # require at least minFracSamps samples of interest within sdLim sigmas of mu
+                minSamps = nbSamples * minFracSamps
                 sdLim = 2
-                samplesUnderCN2 = numpy.sum(numpy.logical_and(FPMs[ei, :] - mu - sdLim * sigma < 0,
-                                                              FPMs[ei, :] - mu + sdLim * sigma > 0))
+                samplesUnderCN2 = numpy.sum(numpy.logical_and(FPMs[ei, samplesOfInterest] - mu - sdLim * sigma < 0,
+                                                              FPMs[ei, samplesOfInterest] - mu + sdLim * sigma > 0))
                 if samplesUnderCN2 < minSamps:
                     # low support for CN2
                     Ecodes[ei] = -3
@@ -130,13 +134,14 @@ def fitCN2(FPMs, clusterID, fpmCn0, isHaploid):
                     # CN2 too close to CN0
                     Ecodes[ei] = -4
 
-                # in diploids: prefer if CN1 is also at least minZscore sigmas_cn1 from fpmCn0
-                elif (not isHaploid) and ((mu / 2 - minZscore * sigma / 2) <= fpmCn0):
+                # in diploids: prefer if CN1 is at least minZscore sigmas_cn1 from fpmCn0,
+                # ie mu/2 - minZscore*sigma/2 > fpmCn0, ie mu - minZscore*sigma > 2*fpmCn0
+                elif (not isHaploid) and ((mu - minZscore * sigma) <= 2 * fpmCn0):
                     # CN1 too close to CN0
                     Ecodes[ei] = 1
-                # in diploids, also prefer if CN1 is not too close to CN2: require at least
-                # 2 * sigma_cn2 between mu_cn1 and mu_cn2, ie 2*sigma < mu/2, ie 4*sigma < mu
-                elif (not isHaploid) and ((4 * sigma) >= mu):
+                # in diploids, also prefer if CN1 is at least minZscore sigmas_cn2 from CN2, ie
+                # minZscore*sigma < mu/2, ie 2*minZscore*sigma < mu
+                elif (not isHaploid) and ((2 * minZscore * sigma) >= mu):
                     # CN1 too close to CN2
                     Ecodes[ei] = 1
 

@@ -450,7 +450,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
                  clusterID, CN0sigma, fpmCn0)
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
-    (Ecodes, CN2means, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, clusterID, fpmCn0, isHaploid)
+    (Ecodes, CN2means, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,
+                                                                clusterID, fpmCn0, isHaploid)
     logger.debug("cluster %s - done fitCN2", clusterID)
 
     thisTime = time.time()
