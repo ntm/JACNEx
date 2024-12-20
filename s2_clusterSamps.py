@@ -223,7 +223,8 @@ def main(argv):
         logger.error("printing clusters failed : %s", str(e))
         raise Exception("printClustsFile failed")
 
-    logger.info("predicted genders (XXY are predicted as Female) appear in the GENDER column in %s", outFile)
+    logger.info("please examine %s", outFile)
+    logger.info("predicted genders appear in the GENDER column (XXY are predicted as Female)")
     logger.info("discrepancies with your metadata usually reveal metadata errors, otherwise please tell us!")
     logger.debug("ALL DONE")
 
