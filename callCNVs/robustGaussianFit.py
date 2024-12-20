@@ -58,8 +58,10 @@ def truncated_integral_and_sigma(x):
 
 
 #############################################################
-# Precompute truncated_integral_and_sigma with the default bandwidth of 2.0
-TRUNCINTSIG = truncated_integral_and_sigma(2.0)
+# set bandwidth module-wide
+BANDWIDTH = 2.5
+# Precompute truncated_integral_and_sigma with the hard-coded bandwidth
+TRUNCINTSIG = truncated_integral_and_sigma(BANDWIDTH)
 
 
 ###############################################################################
@@ -67,7 +69,7 @@ TRUNCINTSIG = truncated_integral_and_sigma(2.0)
 ###############################################################################
 #############################################################
 @numba.njit
-def robustGaussianFit(X, mu=None, sigma=None, bandwidth=2.0, eps=1.0e-5):
+def robustGaussianFit(X, mu=None, sigma=None, bandwidth=BANDWIDTH, eps=1.0e-5):
     """
     Fits a single principal gaussian component around a starting guess point
     in a 1-dimensional gaussian mixture of unknown components with EM algorithm
@@ -76,7 +78,7 @@ def robustGaussianFit(X, mu=None, sigma=None, bandwidth=2.0, eps=1.0e-5):
         X (numpy.array): A sample of 1-dimensional mixture of gaussian random variables
         mu (float, optional): Expectation. Defaults to None.
         sigma (float, optional): Standard deviation. Defaults to None.
-        bandwidth (float, optional): Hyperparameter of truncation. Defaults to 2.
+        bandwidth (float, optional): Hyperparameter of truncation. Defaults to BANDWIDTH.
         eps (float, optional): Convergence tolerance. Defaults to 1.0e-5.
 
     Returns:
@@ -95,10 +97,8 @@ def robustGaussianFit(X, mu=None, sigma=None, bandwidth=2.0, eps=1.0e-5):
         sigma = numpy.std(X) / 3
     sigma_0 = sigma + 1
 
-    # use pre-calculated value
-    if bandwidth != 2.0:
-        raise Exception('need precomputed TRUNCINTSIG, if you change the bandwidth you must change the code')
-        # bandwidth_truncated_normal_sigma = truncated_integral_and_sigma(bandwidth)
+    # we will use TRUNCINTSIG -> avoid calculating the same thing tons of times
+    # bandwidth_truncated_normal_sigma = truncated_integral_and_sigma(bandwidth)
 
     while abs(mu - mu_0) + abs(sigma - sigma_0) > eps:
         # loop until tolerence is reached
