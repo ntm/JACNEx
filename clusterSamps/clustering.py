@@ -97,7 +97,8 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
     # build clusters from the linkage matrix
     (clust2samps, fitWith) = linkage2clusters(linkageMatrix, chromType, samples, minSize)
 
-    # define valid clusters, ie size (including valid FIT_WITH) >= minSize
+    # define valid clusters, ie size (including valid FIT_WITH) >= minSize , also require
+    # size (excluding FITWITHs) > 1 (otherwise we can't select CALLable exons in step3)
     clustSizeNoFW = {}
     clustIsValid = {}
 
@@ -115,13 +116,17 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
         if nbFW2clusts[nbFW]:
             for clust in nbFW2clusts[nbFW]:
                 size = clustSizeNoFW[clust]
-                for fw in fitWith[clust]:
-                    if clustIsValid[fw]:
-                        size += clustSizeNoFW[fw]
-                if size >= minSize:
-                    clustIsValid[clust] = True
-                else:
+                if size == 1:
+                    # singleton cluster
                     clustIsValid[clust] = False
+                else:
+                    for fw in fitWith[clust]:
+                        if clustIsValid[fw]:
+                            size += clustSizeNoFW[fw]
+                    if size >= minSize:
+                        clustIsValid[clust] = True
+                    else:
+                        clustIsValid[clust] = False
 
     # remove invalid clusters from fitWith
     for clust in clust2samps:

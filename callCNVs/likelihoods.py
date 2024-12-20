@@ -133,8 +133,8 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
                 else:
                     samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, samplesOfInterest] - mu) < sdLim * sigma)
 
-                if (nbSOIs > 1) and (samplesUnderCN2 < minSamps):
-                    # low support for CN2, but can only be applied if at least 2 samples
+                if (samplesUnderCN2 < minSamps):
+                    # low support for CN2
                     Ecodes[ei] = -3
 
                 # require CN2 to be at least minZscore sigmas from fpmCn0
