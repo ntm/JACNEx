@@ -20,7 +20,6 @@
 import logging
 import math
 import numpy
-import pyerf
 
 ####### JACNEx modules
 import callCNVs.robustGaussianFit
@@ -34,31 +33,26 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################################
 # fitCNO:
-# fit a half-normal distribution to all FPMs in intergenicFPMs.
+# fit an exponential distribution to all FPMs in intergenicFPMs.
 #
 # Args:
 # - intergenicFPMs numpy 2D-array of floats of size nbIntergenics * nbSamples
 #   holding the FPM-normalized counts for intergenic pseudo-exons
 #
-# Returns (CN0sigma, fpmCn0):
-# - CN0sigma is the parameter of the fitted half-normal distribution
+# Returns (CN0lambda, fpmCn0):
+# - CN0lambda is the parameter of the fitted exponential distribution
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
 #   have been produced by the CN0 model (set to fracPPF of the inverse CDF == quantile
 #   function). This will be used later for filtering NOCALL exons.
 def fitCNO(intergenicFPMs):
     # fracPPF hard-coded here, should be fine and universal
-    fracPPF = 0.95
-    # bias-corrected maximum likelihood estimator for sigma: see wikipedia
-    # calculate MLE estimate of sigma
-    N = intergenicFPMs.ravel().shape[0]
-    sigma = math.sqrt((intergenicFPMs.ravel() * intergenicFPMs.ravel()).sum() / N)
-    # correct for bias
-    sigma += sigma / 4 / N
-
+    fracPPF = 0.99
+    # maximum likelihood estimator for lambda: see wikipedia
+    CN0lambda = 1.0 / intergenicFPMs.mean(dtype=numpy.float128)
     # calculate quantile function at fracPPF
-    fpmCn0 = sigma * math.sqrt(2) * pyerf.erfinv(fracPPF)
+    fpmCn0 = -math.log(1 - fracPPF) / CN0lambda
 
-    return (sigma, fpmCn0)
+    return (CN0lambda, fpmCn0)
 
 
 ############################################
@@ -170,7 +164,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM count
 #   for exon e in sample s
-# - CN0sigma: as returned by fitCN0()
+# - CN0lambda: as returned by fitCN0()
 # - Ecodes, CN2means, CN2sigmas: as returned by fitCN2()
 # - isHaploid: boolean (used in the CN3+ model and for zeroing CN1 likelihoods)
 # - forPlots: boolean if True don't set likelihoods to -1 for NOCALL exons
@@ -178,7 +172,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
 # Returns likelihoods (allocated here):
 #   numpy 3D-array of floats of size nbSamples * nbExons * nbStates,
 #   likelihoods[s,e,cn] is the likelihood of state cn for exon e in sample s
-def calcLikelihoods(FPMs, CN0sigma, Ecodes, CN2means, CN2sigmas, isHaploid, forPlots):
+def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2means, CN2sigmas, isHaploid, forPlots):
     # sanity:
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
@@ -194,7 +188,7 @@ def calcLikelihoods(FPMs, CN0sigma, Ecodes, CN2means, CN2sigmas, isHaploid, forP
     # afterwards we set them to -1 for NOCALL exons
 
     # CN0 model, as defined in cn0PDF()
-    likelihoods[:, :, 0] = cn0PDF(FPMs, CN0sigma)
+    likelihoods[:, :, 0] = cn0PDF(FPMs, CN0lambda)
 
     # CN1:
     if isHaploid:
@@ -252,23 +246,17 @@ def gaussianPDF(FPMs, mu, sigma):
 ############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN0 at every datapoint in FPMs.
-# Our current CN0 model is a half-normal distribution of parameter sigma,
-# truncated at 4*sigma (corresponds to CDF > 0.99993)
+# Our current CN0 model is an exponential distribution of parameter CN0lambda
 #
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples
-# - sigma: parameter of the CN0
+# - CN0lambda: parameter of the CN0
 #
-# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
-def cn0PDF(FPMs, sigma):
-    # numpy.exp(-0.5 * (X / sigma)**2) * (2 / sigma / SQRT_2PI)
-    res = FPMs.T / sigma
-    res *= res
-    res /= -2
-    res = numpy.exp(res)
-    res *= 2 / sigma / SQRT_2PI
-    # truncate at 4*sigma
-    res[FPMs.T >= 4 * sigma] = 0.0
+# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
+def cn0PDF(FPMs, CN0lambda):
+    # pdf(X) = lambda * numpy.exp(-lambda * X)
+    res = numpy.exp(-CN0lambda * FPMs.T)
+    res *= CN0lambda
     return (res)
 
 

@@ -53,7 +53,7 @@ sudo dnf install python3.12-pip-wheel python3.12-setuptools-wheel python3.12-whe
 
 #### python modules
 JACNEx requires the following python modules:<br>
-_numpy scipy numba ncls matplotlib pyerf scikit-learn KDEpy_<br>
+_numpy scipy numba ncls matplotlib scikit-learn KDEpy_<br>
 On some distributions/environments you may also need to (re-)install setuptools.
 We recommend the following commands, which cleanly install all the requirements in
 a python virtual environment, using the system-wide versions if available:
@@ -62,13 +62,13 @@ PYTHON=python3.12 ### or python3, or python, or...
 $PYTHON -m venv --system-site-packages ~/pyEnv_JACNEx
 source ~/pyEnv_JACNEx/bin/activate
 pip install --upgrade pip
-pip install setuptools numpy scipy numba ncls matplotlib pyerf scikit-learn KDEpy
+pip install setuptools numpy scipy numba ncls matplotlib scikit-learn KDEpy
 ```
 On an ALMA9.4 system today (28/05/2024) this uses the system-wide:<br>
 **setuptools-68.2.2 numpy-1.24.4 scipy-1.11.1**
 
 (provided they are installed on the system), and it installs in ~/pyEnv_JACNEx/ :<br>
-**numba-0.59.1 ncls-0.0.68 matplotlib-3.8.4 pyerf-1.0.1 scikit_learn-1.4.2 KDEpy-1.1.9**
+**numba-0.59.1 ncls-0.0.68 matplotlib-3.8.4 scikit_learn-1.4.2 KDEpy-1.1.9**
 
 You then need to activate the venv before running JACNEx, e.g.:
 ```

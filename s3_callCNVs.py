@@ -85,7 +85,7 @@ Given fragment counts (from s1_countFrags.py) and clusters (from s2_clusterSamps
 call CNVs and print results as gzipped VCF files in --outDir.
 The method consists in constructing an HMM whose parameters are fitted in a data-driven
 manner for each cluster. It comprises the following steps:
-    - fit CN0 model (truncated half-normal) for all exons, using intergenic pseudo-exon FPMs;
+    - fit CN0 model (exponential) for all exons, using intergenic pseudo-exon FPMs;
     - fit CN2 model (Gaussian) for each exon using all samples in cluster (including
     FITWITHs); the CN1 (normal) and CN3+ (logNormal) models are then parameterized
     based on the CN2 fitted parameters;
@@ -442,12 +442,12 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including
     # FITWITHs).
-    # Currently CN0 is modeled with a truncated half-normal distribution (parameter: CN0sigma).
+    # Currently CN0 is modeled with an exponential distribution (parameter: CN0lambda).
     # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
     # from CN0. This will be useful later for identifying NOCALL exons.
-    (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCNO(intergenicFPMs)
-    logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
-                 clusterID, CN0sigma, fpmCn0)
+    (CN0lambda, fpmCn0) = callCNVs.likelihoods.fitCNO(intergenicFPMs)
+    logger.debug("cluster %s - done fitCN0 -> CN0lambda=%.2f fpmCn0=%.2f",
+                 clusterID, CN0lambda, fpmCn0)
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
     (Ecodes, CN2means, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,
@@ -468,7 +468,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
         FPMsSOIs = exonFPMs[:, samplesOfInterest]
 
     # use the fitted models to calculate likelihoods for all exons in all SOIs
-    likelihoods = callCNVs.likelihoods.calcLikelihoods(FPMsSOIs, CN0sigma, Ecodes,
+    likelihoods = callCNVs.likelihoods.calcLikelihoods(FPMsSOIs, CN0lambda, Ecodes,
                                                        CN2means, CN2sigmas, isHaploid, False)
     thisTime = time.time()
     logger.info("cluster %s - done calcLikelihoods in %.1fs", clusterID, thisTime - startTime)
@@ -516,7 +516,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
             logger.info("cluster %s - starting plotCNVs as requested, this can be very useful but takes time",
                         clusterID)
             figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                                       isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
+                                       isHaploid, CN0lambda, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
             thisTime = time.time()
             logger.info("cluster %s - done plotCNVs in %.1fs", clusterID, thisTime - startTime)
             startTime = thisTime
@@ -524,7 +524,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     # plot exonsToPlot if any (even if adjustTransMatDMax==0,  we can make plots for NOCALLs)
     if exonsToPlot:
         figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                                      isHaploid, CN0sigma, CN2means, CN2sigmas, clusterID, qcPlotDir)
+                                      isHaploid, CN0lambda, CN2means, CN2sigmas, clusterID, qcPlotDir)
         thisTime = time.time()
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
         startTime = thisTime
