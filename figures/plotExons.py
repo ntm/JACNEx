@@ -287,9 +287,10 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
     # don't plot NOT-CAPTURED exons, there's nothing interesting to plot
     # (also ignore FIT-CN2-FAILED exons but I've never seen one)
     if (Ecodes[thisExon] == -1) or (Ecodes[thisExon] == -2):
-        logging.debug((f"Sample {sampleID}, not plotting exon {exons[thisExon][0]}:"
-                       f"{exons[thisExon][1]}-{exons[thisExon][2]} {exons[thisExon][3]}:"
-                       f"{ECodeSTR[Ecodes[thisExon]]}"))
+        if (not CNV):
+            logging.debug((f"Sample {sampleID}, not plotting exon {exons[thisExon][0]}:"
+                           f"{exons[thisExon][1]}-{exons[thisExon][2]} {exons[thisExon][3]}:"
+                           f"{ECodeSTR[Ecodes[thisExon]]}"))
         return()
 
     # number of bins for the histograms: try to use numSamples/2 (including FITWITH samples),
