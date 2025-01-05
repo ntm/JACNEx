@@ -130,8 +130,8 @@ def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith):
             break
         else:
             prevFPM = fpm
-    # if we didn't find a large gap:
-    if fpmThreshold < medianFPMsY[0]:
+    # if all samples have "high" FPMs on chrY: all-male? or largeGapSize is too small?
+    if largeGapSize < medianFPMsY[0]:
         logger.warning("all samples are predicted to be Male, is this correct? If not, CNV calls on the")
         logger.warning("sex chromosomes will be lower quality. Please let us know so we can fix it.")
     elif fpmThreshold == 0:
