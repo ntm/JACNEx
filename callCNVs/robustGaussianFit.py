@@ -59,7 +59,7 @@ def truncated_integral_and_sigma(x):
 
 #############################################################
 # set bandwidth module-wide
-BANDWIDTH = 3.0
+BANDWIDTH = 2.5
 # Precompute truncated_integral_and_sigma with the hard-coded bandwidth
 TRUNCINTSIG = truncated_integral_and_sigma(BANDWIDTH)
 
