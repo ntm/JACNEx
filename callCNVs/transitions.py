@@ -1,5 +1,5 @@
 ############################################################################################
-# Copyright (C) Nicolas Thierry-Mieg and Amandine Septier, 2021-2024
+# Copyright (C) Nicolas Thierry-Mieg and Amandine Septier, 2021-2025
 #
 # This file is part of JACNEx, written by Nicolas Thierry-Mieg and Amandine Septier
 # (CNRS, France)  {Nicolas.Thierry-Mieg,Amandine.Septier}@univ-grenoble-alpes.fr
