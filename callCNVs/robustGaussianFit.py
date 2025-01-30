@@ -105,7 +105,8 @@ def robustGaussianFit(X, mu=None, sigma=None, bandwidth=BANDWIDTH, eps=1.0e-5):
         """
         create a uniform window on X around mu of width 2*bandwidth*sigma
         find the mean of that window to shift the window to most expected local value
-        measure the standard deviation of the window and divide by the stddev of a truncated gaussian distribution
+        measure the standard deviation of the window and divide by the stddev of a
+        truncated gaussian distribution
         """
         window = numpy.logical_and(X - mu - bandwidth * sigma < 0, X - mu + bandwidth * sigma > 0)
         if not window.any():
