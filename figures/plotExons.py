@@ -251,9 +251,9 @@ def getLabels(isHaploid, CN0lambda, CN2Mean, CN2Sigma):
     # parameters of CN1 and CN3 (MUST MATCH the models in likelihooods.py)
     CN1Mean = CN2Mean / 2
     CN1Sigma = CN2Sigma / 2
-    # CN3Sigma = 0.5    constant => not displayed
-    CN3Loc = CN2Mean + 2 * CN2Sigma
-    CN3Mu = math.log(CN2Mean)
+    CN3Sigma = 0.5  # constant => not displayed
+    CN3Loc = CN2Mean + 3 * CN2Sigma
+    CN3Mu = math.log(CN2Mean) + CN3Sigma * CN3Sigma
     if isHaploid:
         CN3Mu += math.log(2)
 
