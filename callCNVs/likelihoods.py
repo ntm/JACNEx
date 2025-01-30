@@ -244,6 +244,29 @@ def gaussianPDF(FPMs, mu, sigma):
 
 
 ############################################
+# Calculate the likelihoods (==values of the PDF) of a LogNormal distribution
+# of parameters mu[e] and sigma[e] shifted by loc[e], at FPMs[e,:] for
+# every exonIndex e.
+#
+# Args:
+# - FPMs: 2D-array of floats of size nbExons * nbSamples
+# - mu, sigma, loc: 1D-arrays of floats of size nbExons
+#
+# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
+def logNormalPDF(FPMs, mu, sigma, loc=0.0):
+    # mask values <= loc to avoid doing any computations on them, this also copies the data
+    res = numpy.ma.masked_less_equal(FPMs.T, loc)
+    res -= loc
+
+    # the formula for the pdf of a LogNormal is pretty simple (see wikipedia), but
+    # the order of operations is important to avoid overflows/underflows. The following
+    # works for us and is reasonably fast
+    res = numpy.ma.log(res)
+    res = numpy.ma.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.ma.log(sigma * SQRT_2PI))
+    return (res.filled(fill_value=0.0))
+
+
+############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN0 at every datapoint in FPMs.
 # Our current CN0 model is an exponential distribution of parameter CN0lambda
@@ -288,12 +311,4 @@ def cn3PDF(FPMs, cn2Mu, cn2Sigma, isHaploid):
         # distribution by a factor of 2 <=> mu += ln(2)
         mu += math.log(2)
 
-    # mask values <= loc to avoid doing any computations on them, this also copies the data
-    res = numpy.ma.masked_less_equal(FPMs.T, loc)
-    res -= loc
-    # the formula for the pdf of a LogNormal is pretty simple (see wikipedia), but
-    # the order of operations is important to avoid overflows/underflows. The following
-    # works for us and is reasonably fast
-    res = numpy.ma.log(res)
-    res = numpy.ma.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.ma.log(sigma * SQRT_2PI))
-    return (res.filled(fill_value=0.0))
+    return(logNormalPDF(FPMs, mu, sigma, loc))
