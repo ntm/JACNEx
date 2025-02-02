@@ -120,7 +120,7 @@ def main(argv):
     try:
         (samp2sex, samp2batch) = parseMetadata(metadataFile)
     except Exception as e:
-        logger.error("error parsing metadata file file: %s", str(e))
+        logger.error("error parsing metadata file: %s", str(e))
         raise
     try:
         (clust2samps, samp2clusts, fitWith, clust2gender, clustIsValid) = clusterSamps.clustFile.parseClustsFile(clusterFile)
