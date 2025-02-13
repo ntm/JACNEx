@@ -529,16 +529,13 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
         startTime = thisTime
 
-    # set CN2means of NOCALL exons to 0 (AFTER plotting and BEFORE printCallsFile)
-    CN2means[Ecodes < 0] = 0
-
     # print CNVs for this cluster as a VCF file if it didn't pre-exist
     if (clustFound == 0):
         # without --plotCNVs, new clusters don't have plots
         thisCnvPlotDir = ""
         if plotCNVs:
             thisCnvPlotDir = cnvPlotDir
-        callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs,
+        callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2mus, Ecodes, sampleIDs,
                                           exons, BPDir, padding, madeBy, minGQ, thisCnvPlotDir)
 
     thisTime = time.time()
