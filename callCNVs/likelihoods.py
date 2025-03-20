@@ -199,7 +199,7 @@ def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2mus, CN2sigmas, fpmCn0, isHaploi
         # in haploids: all-zeroes for CN1
         likelihoods[:, :, 1] = 0
     else:
-        likelihoods[:, :, 1] = cn1PDF(FPMs, CN2mus, CN2sigmas, fpmCn0)
+        likelihoods[:, :, 1] = cn1PDF(FPMs, CN2mus, CN2sigmas)
 
     likelihoods[:, :, 2] = cn2PDF(FPMs, CN2mus, CN2sigmas, fpmCn0)
     likelihoods[:, :, 3] = cn3PDF(FPMs, CN2mus, CN2sigmas, fpmCn0, isHaploid)
