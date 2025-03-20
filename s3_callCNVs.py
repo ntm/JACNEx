@@ -450,8 +450,8 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
                  clusterID, CN0lambda, fpmCn0)
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
-    (Ecodes, CN2means, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,
-                                                                clusterID, fpmCn0, isHaploid)
+    (Ecodes, CN2mus, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,
+                                                              clusterID, fpmCn0, isHaploid)
     logger.debug("cluster %s - done fitCN2", clusterID)
 
     thisTime = time.time()
@@ -469,7 +469,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # use the fitted models to calculate likelihoods for all exons in all SOIs
     likelihoods = callCNVs.likelihoods.calcLikelihoods(FPMsSOIs, CN0lambda, Ecodes,
-                                                       CN2means, CN2sigmas, isHaploid, False)
+                                                       CN2mus, CN2sigmas, fpmCn0, isHaploid, False)
     thisTime = time.time()
     logger.info("cluster %s - done calcLikelihoods in %.1fs", clusterID, thisTime - startTime)
     startTime = thisTime
@@ -516,7 +516,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
             logger.info("cluster %s - starting plotCNVs as requested, this can be very useful but takes time",
                         clusterID)
             figures.plotExons.plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                                       isHaploid, CN0lambda, CN2means, CN2sigmas, clusterID, cnvPlotDir, jobs)
+                                       isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, cnvPlotDir, jobs)
             thisTime = time.time()
             logger.info("cluster %s - done plotCNVs in %.1fs", clusterID, thisTime - startTime)
             startTime = thisTime
@@ -524,13 +524,10 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     # plot exonsToPlot if any (even if adjustTransMatDMax==0,  we can make plots for NOCALLs)
     if exonsToPlot:
         figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                                      isHaploid, CN0lambda, CN2means, CN2sigmas, clusterID, qcPlotDir)
+                                      isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, qcPlotDir)
         thisTime = time.time()
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
         startTime = thisTime
-
-    # set CN2means of NOCALL exons to 0 (AFTER plotting and BEFORE printCallsFile)
-    CN2means[Ecodes < 0] = 0
 
     # print CNVs for this cluster as a VCF file if it didn't pre-exist
     if (clustFound == 0):
@@ -538,7 +535,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
         thisCnvPlotDir = ""
         if plotCNVs:
             thisCnvPlotDir = cnvPlotDir
-        callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2means, sampleIDs,
+        callCNVs.callsFile.printCallsFile(vcfFile, CNVs, FPMsSOIs, CN2mus, Ecodes, sampleIDs,
                                           exons, BPDir, padding, madeBy, minGQ, thisCnvPlotDir)
 
     thisTime = time.time()

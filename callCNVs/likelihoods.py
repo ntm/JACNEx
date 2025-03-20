@@ -57,14 +57,14 @@ def fitCNO(intergenicFPMs):
 
 ############################################
 # fitCN2:
-# for each exon (==row of FPMs), try to fit a normal distribution to the
+# for each exon (==row of FPMs), try to fit a Normal distribution to the
 # dominant component of the FPMs (this is our model of CN2, we assume that
 # most samples are CN2), and apply  the following QC criteria, testing if:
 # - exon isn't captured (median FPM <= fpmCn0)
 # - fitting fails (exon is very atypical, can't make any calls)
 # - CN2 model isn't supported by at least minFracSamps of the samplesOfInterest
-# - CN2 Gaussian can't be clearly distinguished from CN0 model (see minZscore)
-# - CN1 Gaussian (in diploids only) can't be clearly distinguished from
+# - CN2 model can't be clearly distinguished from CN0 model (see minZscore)
+# - CN1 model (in diploids only) can't be clearly distinguished from
 #   CN0 or CN2 model (E==1 ie CALLED-CN1-RESTRICTED, see viterbi.py)
 #
 # Args:
@@ -75,18 +75,18 @@ def fitCNO(intergenicFPMs):
 # - clusterID: name of cluster (for logging)
 # - fpmCn0, isHaploid: used for the QC criteria
 #
-# Return (Ecodes, CN2means, CN2sigmas):
+# Return (Ecodes, CN2mus, CN2sigmas):
 # each is a 1D numpy.ndarray of size=nbExons, values for each exon are:
 # - the status/error code:
 #   E==-1 if exon isn't captured
-#   E==-2 if robustGaussianFit failed
+#   E==-2 if fitting failed
 #   E==-3 if low support for CN2 model
 #   E==-4 if CN2 is too close to CN0
 #   E==1  if CN1 is too close to CN0 or to CN2 but CN2 isn't (in diploids only)
 #   E==0  if all QC criteria pass
-# - the mean and stdev of the CN2 model, or (1,1) if we couldn't fit CN2,
+# - the mu and sigma of the CN2 model, or (1,1) if we couldn't fit CN2,
 #   ie Ecode==-1 or -2
-#   [NOTE: (mean,stdev)==(1,1) allows to use vectorized gaussianPDF() and
+#   [NOTE: (mu,sigma)==(1,1) allows to use vectorized cn2PDF() and
 #   cn3PDF() without DIVBYZERO errors on NOCALL exons]
 def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
     nbExons = FPMs.shape[0]
@@ -98,7 +98,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
         primaryCluster = False
 
     Ecodes = numpy.zeros(nbExons, dtype=numpy.byte)
-    CN2means = numpy.ones(nbExons, dtype=numpy.float64)
+    CN2mus = numpy.ones(nbExons, dtype=numpy.float64)
     CN2sigmas = numpy.ones(nbExons, dtype=numpy.float64)
 
     # hard-coded min Z-score parameter for "too close to CN0/CN2"
@@ -110,48 +110,54 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
         if numpy.median(FPMs[ei, :]) <= fpmCn0:
             # uncaptured exon
             Ecodes[ei] = -1
+            continue
+
+        # try to fit a truncated Gaussian on main component
+        (mu, sigma) = callCNVs.robustGaussianFit.robustGaussianFit(FPMs[ei, :])
+
+        if sigma == 0:
+            # cannot robustly fit Gaussian
+            Ecodes[ei] = -2
+            continue
+
+        # if we get here, (mu, sigma) are OK:
+        (CN2mus[ei], CN2sigmas[ei]) = (mu, sigma)
+
+        # require CN2 to be at least minZscore sigmas from fpmCn0
+        if (mu - minZscore * sigma) <= fpmCn0:
+            # CN2 too close to CN0
+            Ecodes[ei] = -4
+            continue
+
+        # require at least minFracSamps samples (of interest) within sdLim sigmas of mu
+        minSamps = int(nbSOIs * minFracSamps)
+        sdLim = 2
+        if primaryCluster:
+            samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, :] - mu) < sdLim * sigma)
         else:
-            (mu, sigma) = callCNVs.robustGaussianFit.robustGaussianFit(FPMs[ei, :])
-            if mu == 0:
-                # cannot robustly fit Gaussian
-                Ecodes[ei] = -2
-            else:
-                # if we get here, (mu, sigma) are OK:
-                (CN2means[ei], CN2sigmas[ei]) = (mu, sigma)
+            samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, samplesOfInterest] - mu) < sdLim * sigma)
 
-                # require at least minFracSamps samples (of interest) within sdLim sigmas of mu
-                minSamps = int(nbSOIs * minFracSamps)
-                sdLim = 2
-                if primaryCluster:
-                    samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, :] - mu) < sdLim * sigma)
-                else:
-                    samplesUnderCN2 = numpy.sum(numpy.abs(FPMs[ei, samplesOfInterest] - mu) < sdLim * sigma)
+        if (samplesUnderCN2 < minSamps):
+            # low support for CN2
+            Ecodes[ei] = -3
+            continue
 
-                if (samplesUnderCN2 < minSamps):
-                    # low support for CN2
-                    Ecodes[ei] = -3
+        # in diploids: prefer if CN1 is at least minZscore sigmas_cn1 from fpmCn0,
+        # ie mu/2 - minZscore*sigma/2 > fpmCn0, ie mu - minZscore*sigma > 2*fpmCn0
+        if (not isHaploid) and ((mu - minZscore * sigma) <= 2 * fpmCn0):
+            # CN1 too close to CN0
+            Ecodes[ei] = 1
+            continue
+        # in diploids, also prefer if CN1 is at least minZscore sigmas_cn2 from CN2, ie
+        # minZscore*sigma < mu/2, ie 2*minZscore*sigma < mu
+        if (not isHaploid) and ((2 * minZscore * sigma) >= mu):
+            # CN1 too close to CN2
+            Ecodes[ei] = 1
+            continue
 
-                # require CN2 to be at least minZscore sigmas from fpmCn0
-                elif (mu - minZscore * sigma) <= fpmCn0:
-                    # CN2 too close to CN0
-                    Ecodes[ei] = -4
+        # if we get here exon is good, but there's nothing more to do
 
-                # in diploids: prefer if CN1 is at least minZscore sigmas_cn1 from fpmCn0,
-                # ie mu/2 - minZscore*sigma/2 > fpmCn0, ie mu - minZscore*sigma > 2*fpmCn0
-                elif (not isHaploid) and ((mu - minZscore * sigma) <= 2 * fpmCn0):
-                    # CN1 too close to CN0
-                    Ecodes[ei] = 1
-                # in diploids, also prefer if CN1 is at least minZscore sigmas_cn2 from CN2, ie
-                # minZscore*sigma < mu/2, ie 2*minZscore*sigma < mu
-                elif (not isHaploid) and ((2 * minZscore * sigma) >= mu):
-                    # CN1 too close to CN2
-                    Ecodes[ei] = 1
-
-                else:
-                    # if we get here exon is good, but there's nothing more to do
-                    pass
-
-    return(Ecodes, CN2means, CN2sigmas)
+    return(Ecodes, CN2mus, CN2sigmas)
 
 
 ############################################
@@ -165,14 +171,14 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
 # - FPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM count
 #   for exon e in sample s
 # - CN0lambda: as returned by fitCN0()
-# - Ecodes, CN2means, CN2sigmas: as returned by fitCN2()
+# - Ecodes, CN2mus, CN2sigmas: as returned by fitCN2()
 # - isHaploid: boolean (used in the CN3+ model and for zeroing CN1 likelihoods)
 # - forPlots: boolean if True don't set likelihoods to -1 for NOCALL exons
 #
 # Returns likelihoods (allocated here):
 #   numpy 3D-array of floats of size nbSamples * nbExons * nbStates,
 #   likelihoods[s,e,cn] is the likelihood of state cn for exon e in sample s
-def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2means, CN2sigmas, isHaploid, forPlots):
+def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2mus, CN2sigmas, fpmCn0, isHaploid, forPlots):
     # sanity:
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
@@ -187,23 +193,16 @@ def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2means, CN2sigmas, isHaploid, for
     # NOTE: calculating likelihoods for all exons, taking advantage of numpy vectorization;
     # afterwards we set them to -1 for NOCALL exons
 
-    # CN0 model, as defined in cn0PDF()
     likelihoods[:, :, 0] = cn0PDF(FPMs, CN0lambda)
 
-    # CN1:
     if isHaploid:
-        # in haploids: all-zeroes
+        # in haploids: all-zeroes for CN1
         likelihoods[:, :, 1] = 0
     else:
-        # in diploids: rescale the CN2 Gaussian by factor 1/2 (model a single copy rather
-        # than 2) -> Normal(CN2mu/2, CN2sigma/2)
-        likelihoods[:, :, 1] = gaussianPDF(FPMs, CN2means / 2, CN2sigmas / 2)
+        likelihoods[:, :, 1] = cn1PDF(FPMs, CN2mus, CN2sigmas, fpmCn0)
 
-    # CN2 model: the fitted CN2 Gaussian
-    likelihoods[:, :, 2] = gaussianPDF(FPMs, CN2means, CN2sigmas)
-
-    # CN3 model, as defined in cn3PDF()
-    likelihoods[:, :, 3] = cn3PDF(FPMs, CN2means, CN2sigmas, isHaploid)
+    likelihoods[:, :, 2] = cn2PDF(FPMs, CN2mus, CN2sigmas, fpmCn0)
+    likelihoods[:, :, 3] = cn3PDF(FPMs, CN2mus, CN2sigmas, fpmCn0, isHaploid)
 
     if not forPlots:
         # NOCALL exons: set to -1 for every sample+state
@@ -216,7 +215,7 @@ def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2means, CN2sigmas, isHaploid, for
 ############################ PRIVATE FUNCTIONS ################################
 ###############################################################################
 ############################################
-# Precompute sqrt(2*pi), used many times in gaussianPDF() and cn3PDF()
+# Precompute sqrt(2*pi), used many times
 SQRT_2PI = math.sqrt(2 * math.pi)
 
 
@@ -244,6 +243,26 @@ def gaussianPDF(FPMs, mu, sigma):
 
 
 ############################################
+# Calculate the likelihoods (==values of the PDF) of a LogNormal distribution
+# of parameters mu[e] and sigma[e] at (FPMs[e,:]+shift) for every exonIndex e.
+#
+# Args:
+# - FPMs: 2D-array of floats of size nbExons * nbSamples
+# - mu, sigma: 1D-arrays of floats of size nbExons
+# - shift: float
+#
+# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
+def logNormalPDF(FPMs, mu, sigma, shift):
+    res = FPMs.T + shift
+    # the formula for the pdf of a LogNormal is pretty simple (see wikipedia), but
+    # the order of operations is important to avoid overflows/underflows. The following
+    # works for us and is reasonably fast
+    res = numpy.log(res)
+    res = numpy.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.log(sigma * SQRT_2PI))
+    return (res)
+
+
+############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN0 at every datapoint in FPMs.
 # Our current CN0 model is an exponential distribution of parameter CN0lambda
@@ -262,6 +281,47 @@ def cn0PDF(FPMs, CN0lambda):
 
 ############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
+# of CN1, based on the CN2 parameters, at FPMs[e,:] for every exonIndex e.
+# Our current CN1 model is a Normal distribution of parameters
+# (mu_CN2 / 2, sigma_CN2 / 2) ie model a single copy rather than 2
+#
+# Args:
+# - FPMs: 2D-array of floats of size nbExons * nbSamples
+# - cn2Mu, cn2Sigma: 1D-arrays of floats of size nbExons
+#
+# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
+def cn1PDF(FPMs, cn2Mu, cn2Sigma):
+    return(gaussianPDF(FPMs, cn2Mu / 2, cn2Sigma / 2))
+
+
+############################################
+# Calculate the likelihoods (==values of the PDF) of our statistical model
+# of CN2 at FPMs[e,:] for every exonIndex e.
+# Our current CN2 model is a Normal distribution of parameters
+# (mu_CN2, sigma_CN2), except it is "squashed" for small FPMs (to avoid masking
+# some genuine single-exon HOMODELs in some specific conditions)
+# NOTE: because of the squashing the function isn't strictly a PDF (it doesn't
+# integrate to 1), but this is marginal and not worth renormalizing.
+#
+# Args:
+# - FPMs: 2D-array of floats of size nbExons * nbSamples
+# - cn2Mu, cn2Sigma: 1D-arrays of floats of size nbExons
+# - fpmCn0: float
+#
+# Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
+def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
+    # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
+    # function around fpmCn0, ie using a quadratic attenuation for now:
+    # for x >= fpmCn0 : f(x) = Norm(x)
+    # for x < fpmCn0 : f(x) = Norm(x) * Norm(x) / Norm(fpmCn0)
+    res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
+    res[FPMs.T < fpmCn0] *= res[FPMs.T < fpmCn0]
+    res[FPMs.T < fpmCn0] /= gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
+    return(res)
+
+
+############################################
+# Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN3+, based on the CN2 mu's and sigmas, at FPMs[e,:] for every exonIndex e.
 #
 # CN3+ is currently modeled as a LogNormal that aims to:
@@ -275,25 +335,21 @@ def cn0PDF(FPMs, CN0lambda):
 # - isHaploid boolean
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
-def cn3PDF(FPMs, cn2Mu, cn2Sigma, isHaploid):
+def cn3PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0, isHaploid):
     # shift the whole distribution by -loc to avoid overlapping too much with CN2
-    loc = cn2Mu + 3 * cn2Sigma
+    # loc = cn2Mu + 3 * cn2Sigma
     # LogNormal parameters set empirically
-    sigma = 0.5
-    mu = numpy.log(cn2Mu) + sigma * sigma
+    # sigma = 0.5
+    # mu = numpy.log(cn2Mu) + sigma * sigma
     # These (sigma,mu) result in a logNormal whose mode is loc + cn2Mu = 2*cn2Mu + 3*cn2Sigma
-    if isHaploid:
-        # diploid aims for 3*cn2Mu/2 while haploid aims for 2*cn2Mu, and the data is
-        # shifted by loc ~= cn2Mu (ignoring the 3 cn2Sigmas here) => rescale the
-        # distribution by a factor of 2 <=> mu += ln(2)
-        mu += math.log(2)
 
-    # mask values <= loc to avoid doing any computations on them, this also copies the data
-    res = numpy.ma.masked_less_equal(FPMs.T, loc)
-    res -= loc
-    # the formula for the pdf of a LogNormal is pretty simple (see wikipedia), but
-    # the order of operations is important to avoid overflows/underflows. The following
-    # works for us and is reasonably fast
-    res = numpy.ma.log(res)
-    res = numpy.ma.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.ma.log(sigma * SQRT_2PI))
-    return (res.filled(fill_value=0.0))
+    ### for now just use a log-normal with mu=cn2Mu+log(3/2) (or cn2Mu+log(2) if haploid), and sigma=cn2Sigma
+
+    # diploid aims for 3*cn2Mu/2 while haploid aims for 2*cn2Mu => rescale the
+    # distribution by a factor of 1.5 or 2 <=> mu += ln(1.5) or ln(2)
+    if not isHaploid:
+        mu = cn2Mu + math.log(1.5)
+    else:
+        mu = cn2Mu + math.log(2)
+
+    return(logNormalPDF(FPMs, mu, cn2Sigma, fpmCn0))

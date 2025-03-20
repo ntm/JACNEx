@@ -97,8 +97,9 @@ def recalibrateGQs(CNVs, numSamples, refVcfFile, minGQ, clusterID):
 #   and sampleIndex is the index in the provided samples
 # - FPMs: 2D-array of floats, size = nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s
-# - CN2means: 1D-array of nbExons floats, CN2means[e] is the fitted mean of
-#   the CN2 model of exon e for the cluster, or 0 if exon is NOCALL
+# - CN2mus: 1D-array of nbExons floats, CN2mus[e] is the fitted mu of
+#   the CN2 model of exon e for the cluster
+# - Ecodes: 1D-array of nbExons bytes, exon is NOCALL if < 0
 # - samples: list of nbSamples sampleIDs (==strings)
 # - exons: list of nbExons exons, one exon is a list [CHR, START, END, EXONID]
 # - BPDir: dir containing the breakpoint files
@@ -106,7 +107,7 @@ def recalibrateGQs(CNVs, numSamples, refVcfFile, minGQ, clusterID):
 # - madeBy (str): Name + version of program that made the CNV calls
 # - minGQ: float, minimum Genotype Quality (GQ)
 # - cnvPlotDir: string, subdir where plotFiles for each CNV were created (or "")
-def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding,
+def printCallsFile(outFile, CNVs, FPMs, CN2Mus, Ecodes, samples, exons, BPDir, padding,
                    madeBy, minGQ, cnvPlotDir):
     # max GQ to produce in the VCF
     maxGQ = 100
@@ -200,8 +201,8 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding
         fragRat = 0
         numExons = 0
         for ei in range(startExi, endExi + 1):
-            if CN2Means[ei] > 0:
-                fragRat += FPMs[ei, sampleIndex] / CN2Means[ei]
+            if Ecodes[ei] >= 0:
+                fragRat += FPMs[ei, sampleIndex] / CN2Mus[ei]
                 numExons += 1
             # else exon ei is NOCALL, ignore it
         fragRat /= numExons
@@ -228,21 +229,21 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Means, samples, exons, BPDir, padding
         s2 = end + 1
         # for s1 we need prev called exon
         prevCalled = startExi - 1
-        while ((prevCalled > 0) and (CN2Means[prevCalled] == 0) and (exons[prevCalled][0] == chrom)):
+        while ((prevCalled > 0) and (Ecodes[prevCalled] < 0) and (exons[prevCalled][0] == chrom)):
             prevCalled -= 1
-        if (exons[prevCalled][0] == chrom) and (CN2Means[prevCalled] != 0):
+        if (exons[prevCalled][0] == chrom) and (Ecodes[prevCalled] >= 0):
             s1 = exons[prevCalled][2] + 1
         else:
             # no prev called exon on chrom, range starts at POS=0
             s1 = 0
         # similarly, for e2 we need the next called exon
         nextCalled = endExi + 1
-        while ((nextCalled < len(CN2Means)) and (CN2Means[nextCalled] == 0) and (exons[nextCalled][0] == chrom)):
+        while ((nextCalled < len(Ecodes)) and (Ecodes[nextCalled] < 0) and (exons[nextCalled][0] == chrom)):
             nextCalled += 1
-        if (nextCalled < len(CN2Means)) and (exons[nextCalled][0] == chrom):
+        if (nextCalled < len(Ecodes)) and (exons[nextCalled][0] == chrom):
             e2 = exons[nextCalled][1] - 1
         else:
-            # no next called exon on chrom, range ends at end of last exon on chorm
+            # no next called exon on chrom, range ends at end of last exon on chrom
             e2 = exons[nextCalled - 1][1] - 1
         bpRange = str(s1) + '-' + str(e1) + ',' + str(s2) + '-' + str(e2)
 
