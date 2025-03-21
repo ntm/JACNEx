@@ -19,6 +19,7 @@
 
 import concurrent.futures
 import logging
+import math
 import matplotlib
 import matplotlib.backends.backend_pdf
 import matplotlib.figure
@@ -252,9 +253,9 @@ def getLabels(isHaploid, CN0lambda, CN2Mu, CN2Sigma):
     CN1Mu = CN2Mu / 2
     CN1Sigma = CN2Sigma / 2
     # TODO update CN3 params when I fix cn3PDF()
-    CN3Shift = cn2Mu
+    CN3Shift = CN2Mu
     CN3Sigma = CN2Sigma
-    CN3Mu = numpy.log(cn2Mu) + CN3Sigma * CN3Sigma
+    CN3Mu = numpy.log(CN2Mu) + CN3Sigma * CN3Sigma
     if isHaploid:
         CN3Mu += math.log(2)
 
