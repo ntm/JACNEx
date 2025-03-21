@@ -342,20 +342,16 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
 def cn3PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0, isHaploid):
-    # shift the whole distribution by -loc to avoid overlapping too much with CN2
-    # loc = cn2Mu + 3 * cn2Sigma
+    # shift the whole distribution to avoid overlapping too much with CN2
+    shift = cn2Mu
     # LogNormal parameters set empirically
-    # sigma = 0.5
-    # mu = numpy.log(cn2Mu) + sigma * sigma
-    # These (sigma,mu) result in a logNormal whose mode is loc + cn2Mu = 2*cn2Mu + 3*cn2Sigma
+    sigma = cn2Sigma
+    mu = numpy.log(cn2Mu) + sigma * sigma
+    # These (sigma,mu) result in a logNormal whose mode is cn2Mu + shift == 2*cn2Mu ,
+    # this should be good for diploids (mode at CN==4), but for haploids this would
+    # place the mode at CN==2 ie the lowest possible number of copies for a DUP,
+    # we prefer a mode at CN==3 ie mu += ln(2)
+    if isHaploid:
+        mu += math.log(2)
 
-    ### for now just use a log-normal with mu=cn2Mu+log(3/2) (or cn2Mu+log(2) if haploid), and sigma=cn2Sigma
-
-    # diploid aims for 3*cn2Mu/2 while haploid aims for 2*cn2Mu => rescale the
-    # distribution by a factor of 1.5 or 2 <=> mu += ln(1.5) or ln(2)
-    if not isHaploid:
-        mu = cn2Mu + math.log(1.5)
-    else:
-        mu = cn2Mu + math.log(2)
-
-    return(logNormalPDF(FPMs, mu, cn2Sigma, fpmCn0))
+    return(logNormalPDF(FPMs, mu, sigma, shift))
