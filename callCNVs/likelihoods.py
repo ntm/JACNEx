@@ -244,7 +244,8 @@ def gaussianPDF(FPMs, mu, sigma):
 
 ############################################
 # Calculate the likelihoods (==values of the PDF) of a LogNormal distribution
-# of parameters mu[e] and sigma[e] at (FPMs[e,:]+shift) for every exonIndex e.
+# of parameters mu[e] and sigma[e] and starting at location "shift", at FPMs[e,:]
+# for every exonIndex e.
 #
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples
@@ -253,13 +254,15 @@ def gaussianPDF(FPMs, mu, sigma):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
 def logNormalPDF(FPMs, mu, sigma, shift):
-    res = FPMs.T + shift
+    # mask values <= shift to avoid doing any computations on them, this also copies the data
+    res = numpy.ma.masked_less_equal(FPMs.T, shift)
+    res -= shift
     # the formula for the pdf of a LogNormal is pretty simple (see wikipedia), but
     # the order of operations is important to avoid overflows/underflows. The following
     # works for us and is reasonably fast
-    res = numpy.log(res)
-    res = numpy.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.log(sigma * SQRT_2PI))
-    return (res)
+    res = numpy.ma.log(res)
+    res = numpy.ma.exp(-(((res - mu) / sigma)**2 / 2) - res - numpy.ma.log(sigma * SQRT_2PI))
+    return (res.filled(fill_value=0.0))
 
 
 ############################################
