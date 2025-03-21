@@ -311,12 +311,15 @@ def cn1PDF(FPMs, cn2Mu, cn2Sigma):
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
 def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
     # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
-    # function around fpmCn0, ie using a quadratic attenuation for now:
+    # function around fpmCn0 -> using a power-law attenuation:
     # for x >= fpmCn0 : f(x) = Norm(x)
-    # for x < fpmCn0 : f(x) = Norm(x) * Norm(x) / Norm(fpmCn0)
+    # for x < fpmCn0 : f(x) = Norm(x) * (Norm(x) / Norm(fpmCn0))**attenuationPower
+    attenuationPower = 3
     res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
-    res[FPMs.T < fpmCn0] *= res[FPMs.T < fpmCn0]
-    res[FPMs.T < fpmCn0] /= gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
+    normFpmCn0 = gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
+    normFactBase = res / normFpmCn0
+    normFactBase **= attenuationPower
+    res[FPMs.T < fpmCn0] *= normFactBase[FPMs.T < fpmCn0]
     return(res)
 
 
