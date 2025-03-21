@@ -250,24 +250,24 @@ def plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, sample
 def getLabels(isHaploid, CN0lambda, CN2Mu, CN2Sigma):
     # parameters of CN1 and CN3 (MUST MATCH the models in likelihooods.py)
     CN1Mu = CN2Mu / 2
-    CN1Sigma = CN2Sigma
+    CN1Sigma = CN2Sigma / 2
     # TODO update CN3 params when I fix cn3PDF()
+    CN3Shift = cn2Mu
     CN3Sigma = CN2Sigma
-    if not isHaploid:
-        CN3Mu = CN2Mu * 1.5
-    else:
-        CN3Mu = CN2Mu * 2
+    CN3Mu = numpy.log(cn2Mu) + CN3Sigma * CN3Sigma
+    if isHaploid:
+        CN3Mu += math.log(2)
 
     if isHaploid:
         labels = [fr'CN0 ($\lambda$={CN0lambda:.2f})',
                   "",
                   fr'CN1 ($\mu$={CN2Mu:.2f}, $\sigma$={CN2Sigma:.2f})',
-                  fr'CN2+ ($\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
+                  fr'CN2+ (shift={CN3Shift:.2f}, $\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
     else:
         labels = [fr'CN0 ($\lambda$={CN0lambda:.2f})',
                   fr'CN1 ($\mu$={CN1Mu:.2f}, $\sigma$={CN1Sigma:.2f})',
                   fr'CN2 ($\mu$={CN2Mu:.2f}, $\sigma$={CN2Sigma:.2f})',
-                  fr'CN3+ ($\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
+                  fr'CN3+ (shift={CN3Shift:.2f}, $\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
 
     return labels
 
