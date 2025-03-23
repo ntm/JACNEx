@@ -320,9 +320,12 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
     attenuationPower = 3
     res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
     normFpmCn0 = gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
-    normFactBase = res / normFpmCn0
-    normFactBase **= attenuationPower
-    res[FPMs.T < fpmCn0] *= normFactBase[FPMs.T < fpmCn0]
+    # special case: if normFpmCn0==0 we would divideByZero below, but in this case
+    # res[FPMs.T < fpmCn0] is all-zeroes anyway -> set normFpmCn0=1
+    normFpmCn0[normFpmCn0 == 0] = 1
+    normFact = res / normFpmCn0
+    normFact **= attenuationPower
+    res[FPMs.T < fpmCn0] *= normFact[FPMs.T < fpmCn0]
     return(res)
 
 
