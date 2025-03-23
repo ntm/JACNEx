@@ -266,9 +266,10 @@ def main(argv):
         except Exception:
             raise Exception(stepNames[0] + " vcfDir " + vcfDir + "doesn't exist and can't be mkdir'd")
 
-    # step3: if --plotCNVs, produce one file per sample in cnvPlotDir
+    # step3: if --plotCNVs, produce one file per sample in cnvPlotDir, but subdir must
+    # exist even without --plotCNVs
     cnvPlotDir = os.path.join(workDir, 'Plots_CNVs/')
-    if ("--plotCNVs" in step3Args) and not os.path.isdir(cnvPlotDir):
+    if not os.path.isdir(cnvPlotDir):
         try:
             os.mkdir(cnvPlotDir)
         except Exception:
