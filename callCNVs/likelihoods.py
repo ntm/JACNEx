@@ -316,16 +316,20 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
     # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
     # function around fpmCn0 -> using a power-law attenuation:
     # for x >= fpmCn0 : f(x) = Norm(x)
-    # for x < fpmCn0 : f(x) = Norm(x) * (Norm(x) / Norm(fpmCn0))**attenuationPower
+    # for x < fpmCn0 : f(x) = Norm(x) * [Norm(x) / Norm(fpmCn0)]**attenuationPower
     attenuationPower = 3
     res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
     normFpmCn0 = gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
     # special case: if normFpmCn0==0 we would divideByZero below, but in this case
-    # res[FPMs.T < fpmCn0] is all-zeroes anyway -> set normFpmCn0=1
+    # resSmallFpms for this exon is all-zeroes anyway -> set normFpmCn0=1
     normFpmCn0[normFpmCn0 == 0] = 1
-    normFact = res / normFpmCn0
+
+    # copy=False, we will modify res in-place
+    resSmallFpms = numpy.ma.masked_where(FPMs.T >= fpmCn0, res, copy=False)
+    normFact = resSmallFpms / normFpmCn0
     normFact **= attenuationPower
-    res[FPMs.T < fpmCn0] *= normFact[FPMs.T < fpmCn0]
+    resSmallFpms *= normFact
+
     return(res)
 
 
