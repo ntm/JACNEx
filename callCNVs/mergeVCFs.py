@@ -82,10 +82,12 @@ def mergeVCFs(samples, inFiles, outFile):
     for si in range(len(samples)):
         samp2i[samples[si]] = si
 
-    # headers: copy from first VCF, discard headers from other VCFs but
-    # build a mapping: for each inFile, clust2global[inFile][i] = j means that
-    # sample in data column i in inFile is the sample in data column j in outFile
+    # headers: copy from first VCF (except ##fileDate: use most recent datestamp),
+    # discard headers from other VCFs but build a mapping: for each inFile,
+    # clust2global[inFile][i] = j means that sample in data column i in inFile is
+    # the sample in data column j in outFile
     clust2global = {}
+    mostRecent = '000000'
     toPrint = ""
     for ifi in range(len(inFiles)):
         thisFile = inFiles[ifi]
@@ -102,9 +104,18 @@ def mergeVCFs(samples, inFiles, outFile):
                 for i in range(len(fields)):
                     clust2global[thisFile][i] = samp2i[fields[i]]
                 break
+            elif line.startswith('##fileDate='):
+                thisDate = line.rstrip().removeprefix('##fileDate=')
+                if thisDate > mostRecent:
+                    mostRecent = thisDate
+                # if first file: save header line without datestamp
+                if (ifi == 0):
+                    toPrint += "##fileDate=\n"
             elif (ifi == 0):
                 toPrint += line
-            # else this is a non-#CHROM header line and not the first file, ignore
+            # else this is a non-#CHROM and non-##fileDate header line and not the first file, ignore
+    # all headers parsed, use most recent datestamp and print
+    toPrint = toPrint.replace('##fileDate=', '##fileDate=' + mostRecent)
     outFH.write(toPrint)
 
     # data:
