@@ -523,8 +523,9 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
 
     # plot exonsToPlot if any (even if adjustTransMatDMax==0,  we can make plots for NOCALLs)
     if exonsToPlot:
-        figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                                      isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, qcPlotDir)
+        figures.plotExons.plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exonFPMs,
+                                      samplesOfInterest, isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0,
+                                      clusterID, qcPlotDir)
         thisTime = time.time()
         logger.info("cluster %s - done plotQCExons in %.1fs", clusterID, thisTime - startTime)
         startTime = thisTime

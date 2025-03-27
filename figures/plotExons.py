@@ -219,8 +219,8 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - clusterID [str]
 # - plotDir [str]: Folder path to save the generated PDF.
 # Produces plotFile (pdf format), returns nothing.
-def plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
+def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exonFPMs,
+                samplesOfInterest, isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
     # return immediately if exonsToPlot is empty
     if not exonsToPlot:
         return
@@ -240,6 +240,11 @@ def plotQCExons(exonsToPlot, sampleIDs, exons, padding, Ecodes, exonFPMs, sample
             plotExon(samp2index[sampleID], sampleID, thisExon, exons, padding, Ecodes, exonFPMs,
                      samplesOfInterest, isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, False,
                      clusterID, matplotFile)
+            # DEBUGGING data: plot likelihoods of each CN model for each called sample+exon in exonsToPlot
+            if Ecodes[thisExon] >= 0:
+                logger.info("sample %s in cluster %s, exon %s:%i-%i : likelihoods== %s", sampleID, clusterID,
+                            exons[thisExon][0], exons[thisExon][1], exons[thisExon][2],
+                            numpy.array_str(likelihoods[samp2index[sampleID], thisExon], precision=2))
         matplotFile.close()
 
 
