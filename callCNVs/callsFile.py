@@ -232,7 +232,7 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Mus, Ecodes, samples, exons, BPDir, p
         while ((prevCalled > 0) and (Ecodes[prevCalled] < 0) and (exons[prevCalled][0] == chrom)):
             prevCalled -= 1
         if (exons[prevCalled][0] == chrom) and (Ecodes[prevCalled] >= 0):
-            s1 = exons[prevCalled][2] + 1
+            s1 = exons[prevCalled][2] + 1 - padding
         else:
             # no prev called exon on chrom, range starts at POS=0
             s1 = 0
@@ -241,10 +241,10 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Mus, Ecodes, samples, exons, BPDir, p
         while ((nextCalled < len(Ecodes)) and (Ecodes[nextCalled] < 0) and (exons[nextCalled][0] == chrom)):
             nextCalled += 1
         if (nextCalled < len(Ecodes)) and (exons[nextCalled][0] == chrom):
-            e2 = exons[nextCalled][1] - 1
+            e2 = exons[nextCalled][1] - 1 + padding
         else:
             # no next called exon on chrom, range ends at end of last exon on chrom
-            e2 = exons[nextCalled - 1][1] - 1
+            e2 = exons[nextCalled - 1][2] + 1 - padding
         bpRange = str(s1) + '-' + str(e1) + ',' + str(s2) + '-' + str(e2)
 
         # BP: find any split-read-supported breakpoints compatible with this CNV
