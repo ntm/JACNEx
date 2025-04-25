@@ -313,22 +313,22 @@ def cn1PDF(FPMs, cn2Mu, cn2Sigma):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
 def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
-    # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
-    # function around fpmCn0 -> using a power-law attenuation:
-    # for x >= fpmCn0 : f(x) = Norm(x)
-    # for x < fpmCn0 : f(x) = Norm(x) * [Norm(x) / Norm(fpmCn0)]**attenuationPower
-    attenuationPower = 3
     res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
-    normFpmCn0 = gaussianPDF(numpy.array([fpmCn0]), cn2Mu, cn2Sigma)
-    # special case: if normFpmCn0==0 we would divideByZero below, but in this case
-    # resSmallFpms for this exon is all-zeroes anyway -> set normFpmCn0=1
-    normFpmCn0[normFpmCn0 == 0] = 1
 
-    # copy=False, we will modify res in-place
-    resSmallFpms = numpy.ma.masked_where(FPMs.T >= fpmCn0, res, copy=False)
-    normFact = resSmallFpms / normFpmCn0
-    normFact **= attenuationPower
-    resSmallFpms *= normFact
+    # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
+    # function around fpmCn0 -> using an exponential attenuation:
+    # for x >= fpmCn0 : f(x) = N(x) (where N is the Normal pdf)
+    # for x < fpmCn0 : f(x) = N(x) * exp[P * (x - fpmCn0) / fpmCn0]
+    #    where P is the attenuation power
+    # NOTE: with this function f(0) = N(0) * exp(-P) , and f is continuous around fpmCn0 as desired
+    attenuationPower = 10
+
+    # tried using numpy.ma.masked_where(FPMs.T >= fpmCn0,...) but exp overflows because ma
+    # applies the operation on all values, even the masked ones!
+    # Also, according to the doc calculations on a masked array can modify the masked values...
+    # conclusion: ma is just broken and useless, using a bool index array instead
+    fpmIsSmall = FPMs.T < fpmCn0
+    res[fpmIsSmall] *= numpy.exp(attenuationPower * (FPMs.T[fpmIsSmall] - fpmCn0) / fpmCn0)
 
     return(res)
 
