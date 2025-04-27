@@ -411,7 +411,8 @@ def main(argv):
 # - clustFound: int, 0 if VCF + CNVplots didn't pre-exist, 1 if they did and were
 #   retained but we still must make plots for exonsToPlot
 # - plotCNVs: Bool, if True we must make exon-plots for each called CNV
-# - cnvPlotDir: subdir where one plotFile per sample will be created (if plotCNVs)
+# - cnvPlotDir: subdir where one plotFile per sample-clustType-cnvType will be
+#   created (if plotCNVs)
 # - exonsToPlot: Dict, key==sampleID, value==list of exonIndexes to plot in qcPlotDir
 # - qcPlotDir: subdir where exonsToPlot plots will be created (if any)
 # - clusterID: string, for logging
@@ -687,12 +688,13 @@ def checkPrevVCFs(outDir, clust2vcf, clust2samps, fitWith, clustIsValid, minGQ, 
                 if clustID.startswith('G_'):
                     clustType = 'G'
                 for sampleID in clust2samps[clustID]:
-                    prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_old.pdf')
-                    newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '.pdf')
-                    if os.path.isfile(prevPF):
-                        os.rename(prevPF, newPF)
-                    # elif plotCNVs: no prev plotFile, this can happen when a sample has no called CNVs
-                    # else: prev plotFile doesn't exist but plotCNVs==False => NOOP
+                    for cnvType in ('DEL', 'DUP'):
+                        prevPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_' + cnvType + '_old.pdf')
+                        newPF = os.path.join(cnvPlotDir, sampleID + '_' + clustType + '_' + cnvType + '.pdf')
+                        if os.path.isfile(prevPF):
+                            os.rename(prevPF, newPF)
+                        # elif plotCNVs: no prev plotFile, this can happen when a sample has no called CNVs
+                        # else: prev plotFile doesn't exist but plotCNVs==False => NOOP
                 logger.info("cluster %s exactly matches previous VCF %s, reusing it (and cnvPlotFiles if any)",
                             clustID, os.path.basename(clust2prev[clustID]))
                 if (clustID in clust2RTPs):

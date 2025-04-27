@@ -408,11 +408,14 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
 
 #####################
 # Given a CNV called in a sample, plot all exons from the CALLed exon preceding the CNV
-# to the CALLed exon following the CNV. Save to matplotFile.
-def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                    isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFile):
+# to the CALLed exon following the CNV. Save to matplotFileDEL or matplotFileDUP.
+def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                    CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP):
     # find CALLed exons surrounding the CNV
     (cn, startExi, endExi, qualScore, sampleIndex) = CNV
+    matplotFile = matplotFileDEL
+    if cn == 3:
+        matplotFile = matplotFileDUP
     chrom = exons[startExi][0]
     exonBefore = startExi
     if (exonBefore > 0) and (exons[exonBefore - 1][0] == chrom):
@@ -439,12 +442,15 @@ def plotCNVsOneSample(CNVs, sampleID, exons, padding, Ecodes, exonFPMs, samplesO
     clustType = 'A'
     if clusterID.startswith('G_'):
         clustType = 'G'
-    plotFile = os.path.join(plotDir, sampleID + '_' + clustType + '.pdf')
-    matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
+    plotFileDEL = os.path.join(plotDir, sampleID + '_' + clustType + '_DEL.pdf')
+    plotFileDUP = os.path.join(plotDir, sampleID + '_' + clustType + '_DUP.pdf')
+    matplotFileDEL = matplotlib.backends.backend_pdf.PdfPages(plotFileDEL)
+    matplotFileDUP = matplotlib.backends.backend_pdf.PdfPages(plotFileDUP)
     sampleIndex = CNVs[0][4]
     for CNV in CNVs:
         if (CNV[4] != sampleIndex):
             raise Exception("plotCNVsOneSample sanity: called with different samples")
-        plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                        isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFile)
-    matplotFile.close()
+        plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                        CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP)
+    matplotFileDEL.close()
+    matplotFileDUP.close()
