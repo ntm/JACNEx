@@ -62,6 +62,8 @@ def parseArgs(argv):
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
     jobs = str(jobs)
+    # default log level
+    logLevel = logging.INFO
 
     # default values of step1 optional args, as strings
     tmpDir = "/tmp/"
@@ -91,6 +93,7 @@ Global arguments:
    --regionsToPlot [str] : comma-separated list of sampleID:chr:start-end for which exon plots
            should be specifically produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
    --jobs [int] : cores that we can use, defaults to 80% of available cores ie """ + jobs + """
+   -v, --verbose : more detailed log messages
    -h , --help : display this help and exit
 
 Step 1 optional arguments, defaults should be OK:
@@ -108,9 +111,9 @@ Step 3 optional arguments, defaults should be OK:
 """
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["bams=", "bams-from=", "bed=", "workDir=", "jobs=",
-                                                       "help", "tmp=", "padding=", "maxGap=", "samtools=",
-                                                       "minSamps=", "minGQ=", "plotCNVs", "regionsToPlot="])
+        opts, args = getopt.gnu_getopt(argv[1:], 'vh', ["bams=", "bams-from=", "bed=", "workDir=", "jobs=",
+                                                        "verbose", "help", "tmp=", "padding=", "maxGap=", "samtools=",
+                                                        "minSamps=", "minGQ=", "plotCNVs", "regionsToPlot="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -123,6 +126,8 @@ Step 3 optional arguments, defaults should be OK:
         if opt in ('-h', '--help'):
             sys.stderr.write(usage)
             sys.exit(0)
+        elif opt in ('-v', '--verbose'):
+            logLevel = logging.DEBUG
         elif opt in ("--workDir"):
             workDir = value
         elif opt in ("--bams", "--bams-from", "--bed", "--tmp", "--maxGap", "--samtools"):
@@ -170,6 +175,11 @@ Step 3 optional arguments, defaults should be OK:
             os.mkdir(workDir)
         except Exception as e:
             raise Exception("workDir " + workDir + " doesn't exist and can't be mkdir'd: " + str(e))
+
+    # configure logging, sub-modules will inherit this config
+    logging.basicConfig(format='%(levelname)s %(asctime)s %(name)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logLevel)
 
     # AOK, return everything that's needed
     return(workDir, step1Args, step2Args, step3Args)
@@ -228,10 +238,13 @@ def main(argv):
     stepNames = ("STEP0 - CHECK ARGS, SUBDIRS AND PRE-EXISTING COUNTFILES -", "STEP1 - COUNT FRAGMENTS -",
                  "STEP2 - CLUSTER SAMPLES -", "STEP3 - CALL CNVs -")
 
-    logger.info("%s STARTING", stepNames[0])
-
     # parse, check and preprocess arguments
     (workDir, step1Args, step2Args, step3Args) = parseArgs(argv)
+
+    # set up logger (configured by parseArgs): we want script name rather than 'root'
+    logger = logging.getLogger(scriptName)
+
+    logger.info("%s STARTING", stepNames[0])
     logger.info("called with: " + " ".join(argv[1:]))
 
     ##################
@@ -426,12 +439,6 @@ def main(argv):
 ####################################################################################
 if __name__ == '__main__':
     scriptName = os.path.basename(sys.argv[0])
-    # configure logging, sub-modules will inherit this config
-    logging.basicConfig(format='%(levelname)s %(asctime)s %(name)s: %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S',
-                        level=logging.INFO)
-    # set up logger: we want script name rather than 'root'
-    logger = logging.getLogger(scriptName)
 
     try:
         main(sys.argv)
