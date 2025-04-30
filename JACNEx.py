@@ -115,6 +115,9 @@ Step 3 optional arguments, defaults should be OK:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
         raise Exception("bad extra arguments: " + ' '.join(args) + ". Try " + scriptName + " --help")
+    if len(opts) == 0:
+        sys.stderr.write(usage)
+        sys.exit(0)
 
     for opt, value in opts:
         if opt in ('-h', '--help'):
