@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################################
 # fitCNO:
-# fit a half-normal distribution to all FPMs in intergenicFPMs.
+# fit a half-normal distribution to FPMs in intergenicFPMs (excluding outliers).
 #
 # Args:
 # - intergenicFPMs numpy 2D-array of floats of size nbIntergenics * nbSamples
@@ -44,9 +44,13 @@ logger = logging.getLogger(__name__)
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
 #   have been produced by the CN0 model. Used later for filtering NOCALL exons.
 def fitCNO(intergenicFPMs):
+    # ignore top 0.1% FPMs, assuming these may be captured (whether targeted or not)
+    maxFpm = numpy.quantile(intergenicFPMs, 0.999)
+    fpms = intergenicFPMs[intergenicFPMs <= maxFpm]
     # maximum likelihood estimator for sigma: see wikipedia
-    cn0Sigma = math.sqrt((intergenicFPMs**2).sum(dtype=numpy.float128) / intergenicFPMs.size)
-    # CDF(2*sigma) ~= 95.45% of the data for a half-normal, fine
+    fpms **= 2
+    cn0Sigma = math.sqrt(fpms.sum(dtype=numpy.float128) / fpms.size)
+    # CDF(2*sigma) ~= 95.45% of the data for a half-normal, should be fine
     fpmCn0 = 2 * cn0Sigma
     return (cn0Sigma, fpmCn0)
 
