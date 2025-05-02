@@ -60,7 +60,7 @@ logger = logging.getLogger(__name__)
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
 #   is in the cluster of interest (vs being in a FITWITH cluster)
 # - isHaploid (bool): Whether the samples are haploid in this cluster
-# - CN0lambda (float): rate parameter for CN0 distribution
+# - CN0sigma (float): sigma for CN0 distribution
 # - CN2mus (numpy.ndarray[floats]): mu's for CN2 distribution
 # - CN2sigmas (numpy.ndarray[floats]): sigmas for CN2 distribution
 # - fpmCn0: needed to calculate likelihoods
@@ -70,7 +70,7 @@ logger = logging.getLogger(__name__)
 #
 # Produces plotFile (pdf format), returns nothing.
 def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-             isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir, jobs):
+             isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir, jobs):
     # early return if no CNVs
     if len(CNVs) == 0:
         return()
@@ -100,7 +100,7 @@ def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInteres
                 # changing samples
                 futureRes = pool.submit(plotCNVsOneSample, CNVsOneSample, sampleIDs[sampleIndex],
                                         exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                                        CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir)
+                                        CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir)
                 futureRes.add_done_callback(sampleDone)
                 sampleIndex = CNV[4]
                 CNVsOneSample = [CNV]
@@ -213,14 +213,14 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
 #   is in the cluster of interest (vs being in a FITWITH cluster)
 # - isHaploid (bool): whether the sample is haploid.
-# - CN0lambda (float): rate parameter for CN0 distribution.
+# - CN0sigma (float): sigma for CN0 distribution.
 # - CN2mus (numpy.ndarray[floats]): mu's for CN2 distribution.
 # - CN2sigmas (numpy.ndarray[floats]): sigmas for CN2 distribution.
 # - clusterID [str]
 # - plotDir [str]: Folder path to save the generated PDF.
 # Produces plotFile (pdf format), returns nothing.
 def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exonFPMs,
-                samplesOfInterest, isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
+                samplesOfInterest, isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
     # return immediately if exonsToPlot is empty
     if not exonsToPlot:
         return
@@ -238,9 +238,9 @@ def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exo
         matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
         for thisExon in exonsToPlot[sampleID]:
             plotExon(samp2index[sampleID], sampleID, thisExon, exons, padding, Ecodes, exonFPMs,
-                     samplesOfInterest, isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, False,
+                     samplesOfInterest, isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, False,
                      clusterID, matplotFile)
-            # DEBUGGING data: plot likelihoods of each CN model for each called sample+exon in exonsToPlot
+            # print to log: likelihoods of each CN model for each called sample+exon in exonsToPlot
             if Ecodes[thisExon] >= 0:
                 logger.info("sample %s in cluster %s, exon %s:%i-%i : likelihoods== %s", sampleID, clusterID,
                             exons[thisExon][0], exons[thisExon][1], exons[thisExon][2],
@@ -253,7 +253,7 @@ def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exo
 ###############################################################################
 # Return a list of 4 strings: the legend labels for each CN model, one string per
 # CN state, labels[1]=="" if isHaploid
-def getLabels(isHaploid, CN0lambda, CN2Mu, CN2Sigma):
+def getLabels(isHaploid, CN0sigma, CN2Mu, CN2Sigma):
     # parameters of CN1 and CN3 (MUST MATCH the models in likelihooods.py)
     CN1Mu = CN2Mu / 2
     CN1Sigma = CN2Sigma / 2
@@ -264,12 +264,12 @@ def getLabels(isHaploid, CN0lambda, CN2Mu, CN2Sigma):
         CN3Mu += math.log(2)
 
     if isHaploid:
-        labels = [fr'CN0 ($\lambda$={CN0lambda:.2f})',
+        labels = [fr'CN0 ($\sigma$={CN0sigma:.2f})',
                   "",
                   fr'CN1 ($\mu$={CN2Mu:.2f}, $\sigma$={CN2Sigma:.2f})',
                   fr'CN2+ (shift={CN3Shift:.2f}, $\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
     else:
-        labels = [fr'CN0 ($\lambda$={CN0lambda:.2f})',
+        labels = [fr'CN0 ($\sigma$={CN0sigma:.2f})',
                   fr'CN1 ($\mu$={CN1Mu:.2f}, $\sigma$={CN1Sigma:.2f})',
                   fr'CN2 ($\mu$={CN2Mu:.2f}, $\sigma$={CN2Sigma:.2f})',
                   fr'CN3+ (shift={CN3Shift:.2f}, $\mu$={CN3Mu:.2f}, $\sigma$={CN3Sigma:.2f})']
@@ -285,7 +285,7 @@ def getLabels(isHaploid, CN0lambda, CN2Mu, CN2Sigma):
 # thisSampleIndex: index of sample among samplesOfInterest (ie not counting FITWITH samples)
 # CNV: for title, ignored if False (eg if plotting uncalled exons for QC)
 def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-             isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile):
+             isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile):
     CNcolors = ['red', 'orange', 'green', 'purple']
     ECodeSTR = {0: 'CALLED', 1: 'CALLED-CN1-RESTRICTED', -1: 'NOCALL:NOT-CAPTURED',
                 -2: 'NOCALL:FIT-CN2-FAILED', -3: 'NOCALL:CN2-LOW-SUPPORT', -4: 'NOCALL:CN0-TOO-CLOSE'}
@@ -312,10 +312,10 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
     # as args of calcLikelihoods we need numpy arrays with a single item, use a slice so
     # we get a view (rather than making a new array with eg numpy.array([Ecodes[thisExon]]))
     pdfs = callCNVs.likelihoods.calcLikelihoods(
-        xcoords.reshape(1, -1), CN0lambda, Ecodes[thisExon:thisExon + 1],
+        xcoords.reshape(1, -1), CN0sigma, Ecodes[thisExon:thisExon + 1],
         CN2mus[thisExon:thisExon + 1], CN2sigmas[thisExon:thisExon + 1], fpmCn0, isHaploid, True)
 
-    labels = getLabels(isHaploid, CN0lambda, CN2mus[thisExon], CN2sigmas[thisExon])
+    labels = getLabels(isHaploid, CN0sigma, CN2mus[thisExon], CN2sigmas[thisExon])
 
     fpmSOI = fpms[samplesOfInterest]
     fpmNonSOI = fpms[~samplesOfInterest]
@@ -410,7 +410,7 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
 # Given a CNV called in a sample, plot all exons from the CALLed exon preceding the CNV
 # to the CALLed exon following the CNV. Save to matplotFileDEL or matplotFileDUP.
 def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                    CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP):
+                    CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP):
     # find CALLed exons surrounding the CNV
     (cn, startExi, endExi, qualScore, sampleIndex) = CNV
     matplotFile = matplotFileDEL
@@ -430,7 +430,7 @@ def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfIn
 
     for thisExon in range(exonBefore, exonAfter + 1):
         plotExon(sampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                 isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile)
+                 isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile)
 
 
 #####################
@@ -438,7 +438,7 @@ def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfIn
 # the relevant exons.
 # CNVs must correspond to a single sample and be sorted by chrom-start.
 def plotCNVsOneSample(CNVs, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
-                      isHaploid, CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
+                      isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
     clustType = 'A'
     if clusterID.startswith('G_'):
         clustType = 'G'
@@ -451,6 +451,6 @@ def plotCNVsOneSample(CNVs, sampleID, exons, padding, Ecodes, exonFPMs, samplesO
         if (CNV[4] != sampleIndex):
             raise Exception("plotCNVsOneSample sanity: called with different samples")
         plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
-                        CN0lambda, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP)
+                        CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP)
     matplotFileDEL.close()
     matplotFileDUP.close()

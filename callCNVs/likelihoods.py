@@ -33,26 +33,22 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################################
 # fitCNO:
-# fit an exponential distribution to all FPMs in intergenicFPMs.
+# fit a half-normal distribution to all FPMs in intergenicFPMs.
 #
 # Args:
 # - intergenicFPMs numpy 2D-array of floats of size nbIntergenics * nbSamples
 #   holding the FPM-normalized counts for intergenic pseudo-exons
 #
-# Returns (CN0lambda, fpmCn0):
-# - CN0lambda is the parameter of the fitted exponential distribution
+# Returns (cn0Sigma, fpmCn0):
+# - cn0Sigma is the parameter of the fitted half-normal distribution
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
-#   have been produced by the CN0 model (set to fracPPF of the inverse CDF == quantile
-#   function). This will be used later for filtering NOCALL exons.
+#   have been produced by the CN0 model. Used later for filtering NOCALL exons.
 def fitCNO(intergenicFPMs):
-    # fracPPF hard-coded here, should be fine and universal
-    fracPPF = 0.99
-    # maximum likelihood estimator for lambda: see wikipedia
-    CN0lambda = 1.0 / intergenicFPMs.mean(dtype=numpy.float128)
-    # calculate quantile function at fracPPF
-    fpmCn0 = -math.log(1 - fracPPF) / CN0lambda
-
-    return (CN0lambda, fpmCn0)
+    # maximum likelihood estimator for sigma: see wikipedia
+    cn0Sigma = math.sqrt((intergenicFPMs**2).sum(dtype=numpy.float128) / len(intergenicFPMs))
+    # CDF(3*sigma) ~= 99.73% of the data for a half-normal, fine
+    fpmCn0 = 3 * cn0Sigma
+    return (cn0Sigma, fpmCn0)
 
 
 ############################################
@@ -75,7 +71,7 @@ def fitCNO(intergenicFPMs):
 # - clusterID: name of cluster (for logging)
 # - fpmCn0, isHaploid: used for the QC criteria
 #
-# Return (Ecodes, CN2mus, CN2sigmas):
+# Return (Ecodes, cn2Mus, cn2Sigmas):
 # each is a 1D numpy.ndarray of size=nbExons, values for each exon are:
 # - the status/error code:
 #   E==-1 if exon isn't captured
@@ -98,8 +94,8 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
         primaryCluster = False
 
     Ecodes = numpy.zeros(nbExons, dtype=numpy.byte)
-    CN2mus = numpy.ones(nbExons, dtype=numpy.float64)
-    CN2sigmas = numpy.ones(nbExons, dtype=numpy.float64)
+    cn2Mus = numpy.ones(nbExons, dtype=numpy.float64)
+    cn2Sigmas = numpy.ones(nbExons, dtype=numpy.float64)
 
     # hard-coded min Z-score parameter for "too close to CN0/CN2"
     minZscore = 2
@@ -121,7 +117,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
             continue
 
         # if we get here, (mu, sigma) are OK:
-        (CN2mus[ei], CN2sigmas[ei]) = (mu, sigma)
+        (cn2Mus[ei], cn2Sigmas[ei]) = (mu, sigma)
 
         # require CN2 to be at least minZscore sigmas from fpmCn0
         if (mu - minZscore * sigma) <= fpmCn0:
@@ -157,7 +153,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
 
         # if we get here exon is good, but there's nothing more to do
 
-    return(Ecodes, CN2mus, CN2sigmas)
+    return(Ecodes, cn2Mus, cn2Sigmas)
 
 
 ############################################
@@ -170,15 +166,15 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM count
 #   for exon e in sample s
-# - CN0lambda: as returned by fitCN0()
-# - Ecodes, CN2mus, CN2sigmas: as returned by fitCN2()
+# - cn0Sigma: as returned by fitCN0()
+# - Ecodes, cn2Mus, cn2Sigmas: as returned by fitCN2()
 # - isHaploid: boolean (used in the CN3+ model and for zeroing CN1 likelihoods)
 # - forPlots: boolean if True don't set likelihoods to -1 for NOCALL exons
 #
 # Returns likelihoods (allocated here):
 #   numpy 3D-array of floats of size nbSamples * nbExons * nbStates,
 #   likelihoods[s,e,cn] is the likelihood of state cn for exon e in sample s
-def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2mus, CN2sigmas, fpmCn0, isHaploid, forPlots):
+def calcLikelihoods(FPMs, cn0Sigma, Ecodes, cn2Mus, cn2Sigmas, fpmCn0, isHaploid, forPlots):
     # sanity:
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
@@ -193,16 +189,16 @@ def calcLikelihoods(FPMs, CN0lambda, Ecodes, CN2mus, CN2sigmas, fpmCn0, isHaploi
     # NOTE: calculating likelihoods for all exons, taking advantage of numpy vectorization;
     # afterwards we set them to -1 for NOCALL exons
 
-    likelihoods[:, :, 0] = cn0PDF(FPMs, CN0lambda)
+    likelihoods[:, :, 0] = cn0PDF(FPMs, cn0Sigma)
 
     if isHaploid:
         # in haploids: all-zeroes for CN1
         likelihoods[:, :, 1] = 0
     else:
-        likelihoods[:, :, 1] = cn1PDF(FPMs, CN2mus, CN2sigmas)
+        likelihoods[:, :, 1] = cn1PDF(FPMs, cn2Mus, cn2Sigmas)
 
-    likelihoods[:, :, 2] = cn2PDF(FPMs, CN2mus, CN2sigmas, fpmCn0)
-    likelihoods[:, :, 3] = cn3PDF(FPMs, CN2mus, CN2sigmas, fpmCn0, isHaploid)
+    likelihoods[:, :, 2] = cn2PDF(FPMs, cn2Mus, cn2Sigmas, fpmCn0)
+    likelihoods[:, :, 3] = cn3PDF(FPMs, cn2Mus, cn2Sigmas, fpmCn0, isHaploid)
 
     if not forPlots:
         # NOCALL exons: set to -1 for every sample+state
@@ -268,17 +264,17 @@ def logNormalPDF(FPMs, mu, sigma, shift):
 ############################################
 # Calculate the likelihoods (==values of the PDF) of our statistical model
 # of CN0 at every datapoint in FPMs.
-# Our current CN0 model is an exponential distribution of parameter CN0lambda
+# Our current CN0 model is a half-normal distribution of parameter cn0Sigma
 #
 # Args:
 # - FPMs: 2D-array of floats of size nbExons * nbSamples
-# - CN0lambda: parameter of the CN0
+# - cn0Sigma: parameter of the CN0
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs get transposed)
-def cn0PDF(FPMs, CN0lambda):
-    # pdf(X) = lambda * numpy.exp(-lambda * X)
-    res = numpy.exp(-CN0lambda * FPMs.T)
-    res *= CN0lambda
+def cn0PDF(FPMs, cn0Sigma):
+    # pdf of half-normal is simply double the pdf of a Normal with mu==0
+    res = gaussianPDF(FPMs, 0, cn0Sigma)
+    res *= 2
     return (res)
 
 
