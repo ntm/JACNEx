@@ -45,9 +45,9 @@ logger = logging.getLogger(__name__)
 #   have been produced by the CN0 model. Used later for filtering NOCALL exons.
 def fitCNO(intergenicFPMs):
     # maximum likelihood estimator for sigma: see wikipedia
-    cn0Sigma = math.sqrt((intergenicFPMs**2).sum(dtype=numpy.float128) / len(intergenicFPMs))
-    # CDF(3*sigma) ~= 99.73% of the data for a half-normal, fine
-    fpmCn0 = 3 * cn0Sigma
+    cn0Sigma = math.sqrt((intergenicFPMs**2).sum(dtype=numpy.float128) / intergenicFPMs.size)
+    # CDF(2*sigma) ~= 95.45% of the data for a half-normal, fine
+    fpmCn0 = 2 * cn0Sigma
     return (cn0Sigma, fpmCn0)
 
 
