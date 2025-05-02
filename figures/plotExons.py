@@ -391,7 +391,8 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
                 title += "HET-DEL "
             else:
                 title += "DUP "
-        title += f"{exons[startExi][0]}:{exons[startExi][1] + padding}-{exons[endExi][2] - padding}\n"
+        title += f"{exons[startExi][0]}:{exons[startExi][1] + padding}-{exons[endExi][2] - padding} "
+        title += f"GQ={qualScore:.2f}\n"
     title += f"{ECodeSTR[Ecodes[thisExon]]} exon {exons[thisExon][0]}:"
     title += f"{exons[thisExon][1] + padding}-{exons[thisExon][2] - padding}"
     if (CNV):
