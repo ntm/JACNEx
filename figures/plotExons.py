@@ -261,7 +261,7 @@ def getLabels(isHaploid, CN0sigma, CN2Mu, CN2Sigma):
     shift2 = 1.5 * CN2Mu - 2 * CN2Sigma
     if isHaploid:
         shift2 += 0.5 * CN2Mu
-    CN3Shift = max(shift1, shift2)
+    CN3Shift = numpy.maximum(shift1, shift2)
     CN3Sigma = 0.5
     CN3Mu = numpy.log(CN2Mu) + CN3Sigma * CN3Sigma
     if isHaploid:

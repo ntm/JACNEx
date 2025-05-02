@@ -352,7 +352,7 @@ def cn3PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0, isHaploid):
     shift2 = 1.5 * cn2Mu - 2 * cn2Sigma
     if isHaploid:
         shift2 += 0.5 * cn2Mu
-    shift = max(shift1, shift2)
+    shift = numpy.maximum(shift1, shift2)
 
     # LogNormal parameters set empirically
     sigma = 0.5
