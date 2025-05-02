@@ -345,16 +345,24 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
 #
 # Returns a 2D numpy.ndarray of size nbSamples * nbExons (FPMs gets transposed)
 def cn3PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0, isHaploid):
-    # shift the whole distribution to avoid overlapping too much with CN2
-    shift = cn2Mu + 2 * cn2Sigma
+    # shift the whole distribution to:
+    # - avoid overlapping too much with CN2
+    shift1 = cn2Mu + 2 * cn2Sigma
+    # - avoid starting CN3+ too soon (happens if CN2 is very tight, ie small cn2Sigma)
+    shift2 = 1.5 * cn2Mu - 2 * cn2Sigma
+    if isHaploid:
+        shift2 += 0.5 * cn2Mu
+    shift = max(shift1, shift2)
+
     # LogNormal parameters set empirically
     sigma = 0.5
     mu = numpy.log(cn2Mu) + sigma * sigma
-    # These (sigma,mu) result in a logNormal whose mode is
-    # cn2Mu + shift == 2*cn2Mu + 2*cn2Sigma, this should be good for diploids
-    # (mode at CN==4, ignoring the +2cn2Sigma), but for haploids this would place the
-    # mode close to CN==2 ie the lowest possible number of copies for a DUP, we prefer
-    # a mode at CN==3 ie mu += ln(2) (to reduce false-positive DUP calls)
+    # For diploids these (sigma,mu) result in a logNormal whose mode is
+    # cn2Mu + shift == 2*cn2Mu + max(2*cn2Sigma, 0.5*cn2Mu - 2*cn2Sigma),
+    # this should be good (mode between CN==4 and CN=4.5);
+    # for haploids they result in a mode between CN==2 and CN==3 but CN==2 is
+    # the lowest possible number of copies for a DUP, we prefer a mode
+    # between CN==3 and CN==4 ie mu += ln(2) (to reduce false-positive DUP calls)
     if isHaploid:
         mu += math.log(2)
 
