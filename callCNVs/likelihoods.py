@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
 #   have been produced by the CN0 model. Used later for filtering NOCALL exons.
 def fitCNO(intergenicFPMs):
-    # ignore top 0.1% FPMs, assuming these may be captured (whether targeted or not)
-    maxFpm = numpy.quantile(intergenicFPMs, 0.999)
+    # ignore top 0.5% FPMs, assuming these may be captured (whether targeted or not)
+    maxFpm = numpy.quantile(intergenicFPMs, 0.995)
     fpms = intergenicFPMs[intergenicFPMs <= maxFpm]
     # maximum likelihood estimator for sigma: see wikipedia
     fpms **= 2
