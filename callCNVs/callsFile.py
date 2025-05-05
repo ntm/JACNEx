@@ -212,8 +212,11 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Mus, Ecodes, samples, exons, BPDir, p
         # will call HV-DUPs, although maybe CN=3 on one allele and CN=1 on the other)...
         # [NOTE: at a haploid locus we expect ~2 for a hemizygous DUP but we're OK
         # to call those HV-DUP]
-        # => hard-coded arbitrary cutoff between 1.5 and 2, closer to 2 to be conservative
-        minFragRatDupHomo = 1.9
+        # We should therefore use an arbitrary cutoff between 1.5 and 2. However we
+        # see a lot of "leakage" towards high FPMs, rsulting in too many
+        # HV DUP calls that don't seem bona fide. So we use a high minFragRatDupHomo
+        # to be conservative
+        minFragRatDupHomo = 3.0
         geno = "1/1"
         if (cn == 1):
             geno = "0/1"
