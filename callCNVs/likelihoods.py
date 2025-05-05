@@ -104,7 +104,7 @@ def fitCN2(FPMs, samplesOfInterest, clusterID, fpmCn0, isHaploid):
     # hard-coded min Z-score parameter for "too close to CN0/CN2"
     minZscore = 2
     # hard-coded fraction of samples of interest that must be "under" the CN2
-    minFracSamps = 0.6
+    minFracSamps = 0.75
 
     for ei in range(nbExons):
         if numpy.median(FPMs[ei, :]) <= fpmCn0:
