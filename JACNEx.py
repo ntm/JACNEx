@@ -193,7 +193,7 @@ Step 3 optional arguments, defaults should be OK:
 # - cf is the countsFile with the most common samples (and the fewest other samples), or '' if
 #   list was empty or if no countsFile has any sample from samples
 # - commonSamples is the number of common samples
-def findBestPrevCF(countsFilesAll, samples):
+def findBestPrevCF(countsFilesAll, samples, logger):
     bestCF = ''
     commonSamples = 0
     otherSamples = 0
@@ -331,7 +331,7 @@ def main(argv):
 
         # find pre-existing countsFile (if any) with the most common samples
         countsFilesAll = glob.glob(countsDir + '/counts_*.npz')
-        (countsFilePrev, commonSamples) = findBestPrevCF(countsFilesAll, samples)
+        (countsFilePrev, commonSamples) = findBestPrevCF(countsFilesAll, samples, logger)
         if commonSamples != 0:
             logger.info("will reuse best matching countsFile (%i common samples): %s",
                         commonSamples, os.path.basename(countsFilePrev))
