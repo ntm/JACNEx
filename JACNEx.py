@@ -92,14 +92,14 @@ Global arguments:
    --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV (useful but slow)
    --regionsToPlot [str] : comma-separated list of sampleID:chr:start-end for which exon plots
            should be specifically produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
-   --jobs [int] : cores that we can use, defaults to 80% of available cores ie """ + jobs + """
+   --jobs [int] : cores that we can use, defaults to 80% of available cores (ie """ + jobs + """ on this computer)
    -v, --verbose : more detailed log messages
    -h , --help : display this help and exit
 
 Step 1 optional arguments, defaults should be OK:
    --tmp [str] : pre-existing dir for temp files, faster is better (eg tmpfs), default: """ + tmpDir + """
    --padding [int] : number of bps used to pad the exon coordinates, default : """ + padding + """
-   --maxGap [int] : maximum accepted gap length (bp) between reads pairs, pairs separated by a longer gap
+   --maxGap [int] : maximum accepted gap length (bp) between paired reads, pairs separated by a longer gap
            are assumed to possibly result from a structural variant and are ignored, default : """ + maxGap + """
    --samtools [str] : samtools binary (with path if not in $PATH), default: """ + samtools + """
 
