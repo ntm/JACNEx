@@ -71,7 +71,7 @@ def parseArgs(argv):
     madeBy = ""
     cnvPlotDir = ""
     # optional args with default values
-    minGQ = 5.0
+    minGQ = 6.5
     padding = 10
     plotCNVs = False
     regionsToPlot = ""
