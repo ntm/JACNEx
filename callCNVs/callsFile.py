@@ -112,9 +112,9 @@ def printCallsFile(outFile, CNVs, FPMs, CN2Mus, Ecodes, samples, exons, BPDir, p
     # max GQ to produce in the VCF
     maxGQ = 100
     # min number of aligned fragments supporting given breakpoints to consider
-    # them well-supported, hard-coded here, in our hands 3 or even 2 is fine
-    # but 1 is very noisy
-    minSupportingFrags = 2
+    # them well-supported, hard-coded here, in our hands 3 or even 2 is strong
+    # support but rarely seen, 1 may be more noisy but still useful
+    minSupportingFrags = 1
     BPs = parseBreakpoints(BPDir, samples, minSupportingFrags)
 
     try:
