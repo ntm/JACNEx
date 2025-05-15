@@ -306,7 +306,8 @@ def calcParaSamples(jobs, bamsToProcess, countsFilled, nbOfSamplesToProcess, tmp
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (bamsToProcess, samples, bedFile, outFile, BPDir, jobs, padding, maxGap, countsFile, tmpDir, samtools) = parseArgs(argv)
+    (bamsToProcess, samples, bedFile, outFile, BPDir, jobs, padding, maxGap, countsFile,
+     tmpDir, samtools, wgs, wgsCN0sigma) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -315,7 +316,7 @@ def main(argv):
 
     # parse exons from BED to obtain a list of lists (dim=(NbMergedExons+NbPseudoExons) x [CHR,START,END,EXONID]),
     # the exons and pseudo-exons are sorted according to their genomic position and padded
-    exons = countFrags.bed.processBed(bedFile, padding)
+    exons = countFrags.bed.processBed(bedFile, padding, wgs)
 
     thisTime = time.time()
     logger.info("Done pre-processing BED, in %.2fs", thisTime - startTime)

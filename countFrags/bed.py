@@ -32,18 +32,21 @@ logger = logging.getLogger(__name__)
 
 #############################################################
 # Parse and process BED file holding exon definitions.
-# Args : bedFile == a bed file (with path), possibly gzipped, containing exon definitions
-#            formatted as CHR START END EXON_ID
-#        padding (int)
+# Args :
+# - bedFile == a bed file (with path), possibly gzipped, containing exon definitions
+#      formatted as CHR START END EXON_ID
+# - padding (int)
+# - wgs (Bool)
 #
 # Returns a list of [numberOfMergedExons + numberOfPseudoExons] lists of 4 scalars
 # (types: str,int,int,str) containing CHR,START,END,EXON_ID, and where:
 # - exons from bedFile are padded, ie -padding for START (never negative) and +padding for END
 # - any overlapping paddedExons are merged, their EXON_IDs are concatenated with '-' separator
-# - pseudo-exons are inserted between consecutive exons when they are far apart, as specified
-#   by insertPseudoExons()
+# - if wgs==False: pseudo-exons are inserted between consecutive exons when they are
+#      far apart, as specified by insertPseudoExons()
+# - if wgs==True: pseudo-exons are not created
 # - exons and pseudo-exons are sorted by CHR, then START, then END, then EXON_ID
-def processBed(bedFile, padding):
+def processBed(bedFile, padding, wgs):
     # list of exons to be returned
     exons = []
     # dictionary for checking that EXON_IDs are unique (key='EXON_ID', value=1)
@@ -98,7 +101,10 @@ def processBed(bedFile, padding):
             mergedExons[-1][3] += '-' + exon[3]
         else:
             mergedExons.append(exon)
-    genomicWindows = insertPseudoExons(mergedExons)
+    if wgs:
+        genomicWindows = mergedExons
+    else:
+        genomicWindows = insertPseudoExons(mergedExons)
     return(genomicWindows)
 
 
