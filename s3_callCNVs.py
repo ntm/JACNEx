@@ -76,6 +76,11 @@ def parseArgs(argv):
     plotCNVs = False
     regionsToPlot = ""
     qcPlotDir = ""
+    # JACNEx is designed for exome, but can be run with WGS data (experimental)
+    wgs = False
+    # with WGS data we must use a hard-coded CN0sigma, values between 0.01 and 0.05
+    # may be reasonable (base on what we see with exome data)
+    wgsCN0sigma = 0.03
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
 
@@ -85,7 +90,8 @@ Given fragment counts (from s1_countFrags.py) and clusters (from s2_clusterSamps
 call CNVs and print results as gzipped VCF files in --outDir.
 The method consists in constructing an HMM whose parameters are fitted in a data-driven
 manner for each cluster. It comprises the following steps:
-    - fit CN0 model (half-normal) for all exons, using intergenic pseudo-exon FPMs;
+    - fit CN0 model (half-normal) for all exons, using intergenic pseudo-exon FPMs,
+    except with WGS data where this cannot work and wgsCN0sigma must be provided;
     - fit CN2 model (Gaussian) for each exon using all samples in cluster (including
     FITWITHs); the CN1 (normal) and CN3+ (logNormal) models are then parameterized
     based on the CN2 fitted parameters;
@@ -104,7 +110,7 @@ In addition, plots of FPMs and CN0-CN3+ models are produced:
 
 ARGUMENTS:
     --counts [str]: NPZ file with the fragment counts, as produced by s1_countFrags.py
-    --BPDir [str] : dir containing the breakpoint files, as produced by s1_countFrags.py
+    --BPDir [str]: dir containing the breakpoint files, as produced by s1_countFrags.py
     --clusters [str]: TSV file with the cluster definitions, as produced by s2_clusterSamps.py
     --outDir [str]: subdir where VCF files will be created (one vcf.gz per cluster and one
                 global merged vcf.gz), pre-existing cluster VCFs will be reused if possible
@@ -112,19 +118,22 @@ ARGUMENTS:
     --minGQ [float]: minimum Genotype Quality score, default : """ + str(minGQ) + """
     --madeBy [str]: program name + version to print as "source=" in the produced VCF
     --padding [int]: number of bps used to pad the exon coordinates, default : """ + str(padding) + """
-    --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV
+    --plotCNVs: for each sample, produce a plotfile with exon plots for every called CNV
     --cnvPlotDir [str]: subdir where per-sample plot files will be created if --plotCNVs,
                 pre-existing files are re-used if possible
     --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
     --qcPlotDir [str]: subdir where regionsToPlot plots will be produced
+    --wgs: input data is WGS rather than exome
+    --wgsCN0sigma [float]: required if --wgs, will be used as the CN0 sigma parameter
     --jobs [int]: cores that we can use, defaults to 80% of available cores ie """ + str(jobs) + "\n" + """
     -h , --help: display this help and exit\n"""
 
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=",
                                                        "outFile=", "minGQ=", "madeBy=", "padding=", "plotCNVs",
-                                                       "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=", "jobs="])
+                                                       "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=",
+                                                       "wgs", "wgsCN0sigma=", "jobs="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -158,6 +167,10 @@ ARGUMENTS:
             regionsToPlot = value
         elif (opt in ("--qcPlotDir")):
             qcPlotDir = value
+        elif opt in ("--wgs"):
+            wgs = True
+        elif (opt in ("--wgsCN0sigma")):
+            wgsCN0sigma = value
         elif opt in ("--jobs"):
             jobs = value
         else:
@@ -217,6 +230,14 @@ ARGUMENTS:
     except Exception:
         raise Exception("padding must be a non-negative integer, not " + str(padding))
 
+    if wgs:
+        try:
+            wgsCN0sigma = float(wgsCN0sigma)
+            if (wgsCN0sigma <= 0):
+                raise Exception()
+        except Exception:
+            raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
+
     try:
         jobs = int(jobs)
         if (jobs <= 0):
@@ -235,7 +256,7 @@ ARGUMENTS:
 
     # AOK, return everything that's needed
     return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
-            regionsToPlot, qcPlotDir, jobs, madeBy)
+            regionsToPlot, qcPlotDir, wgs, wgsCN0sigma, jobs, madeBy)
 
 
 ####################################################
@@ -246,7 +267,7 @@ ARGUMENTS:
 def main(argv):
     # parse, check and preprocess arguments
     (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
-     regionsToPlot, qcPlotDir, jobs, madeBy) = parseArgs(argv)
+     regionsToPlot, qcPlotDir, wgs, wgsCN0sigma, jobs, madeBy) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -371,7 +392,7 @@ def main(argv):
         callCNVsOneCluster(clustExonFPMs, clustIntergenicFPMs, samplesOfInterest, clustSamples,
                            clustExons, clusterFound[clusterID], plotCNVs, cnvPlotDir, RTPs, qcPlotDir,
                            clusterID, isHaploid, minGQ, clust2vcf[clusterID], BPDir, padding, madeBy,
-                           refVcfFile, jobs)
+                           refVcfFile, wgs, wgsCN0sigma, jobs)
 
     thisTime = time.time()
     logger.info("all clusters done,  in %.1fs", thisTime - startTime)
@@ -401,7 +422,7 @@ def main(argv):
 # - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters, these are
 #   used for fitting the CN2)
-# - intergenicFPMs: 2D-array of floats of size nbIntergenics * nbSamples,
+# - intergenicFPMs (ignored if wgs): 2D-array of floats of size nbIntergenics * nbSamples,
 #   intergenicFPMs[i,s] is the FPM count for intergenic pseudo-exon i in sample s
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
 #   is in the cluster of interest (vs being in a FITWITH cluster)
@@ -425,12 +446,15 @@ def main(argv):
 #   is FITWITH for clusterID if any ('' if clusterID is a reference cluster itself,
 #   ie it has no FITWITH), if non-empty it MUST exist ie we need to make calls for
 #   all reference clusters before starting on clusters with FITWITHs
+# - wgs (Boolean), wgsCN0sigma (float): if wgs==True, use wgsCN0sigma for the CN0
+#   model instead of fitting it on intergenicFPMs
 # - jobs: number of jobs for the parallelized steps (currently viterbiAllSamples())
 #
 # Produce vcfFile, return nothing.
 def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, exons,
                        clustFound, plotCNVs, cnvPlotDir, exonsToPlot, qcPlotDir, clusterID,
-                       isHaploid, minGQ, vcfFile, BPDir, padding, madeBy, refVcfFile, jobs):
+                       isHaploid, minGQ, vcfFile, BPDir, padding, madeBy, refVcfFile,
+                       wgs, wgsCN0sigma, jobs):
     # sanity
     if (refVcfFile != '') and (not os.path.isfile(refVcfFile)):
         logger.error("sanity: callCNVs for cluster %s but it needs VCF %s of its ref cluster!",
@@ -441,14 +465,21 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     startTime = time.time()
     startTimeCluster = startTime
 
-    # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including
-    # FITWITHs).
-    # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
-    # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
-    # from CN0. This will be useful later for identifying NOCALL exons.
-    (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCN0(intergenicFPMs)
-    logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
-                 clusterID, CN0sigma, fpmCn0)
+    if not wgs:
+        # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including
+        # FITWITHs).
+        # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
+        # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
+        # from CN0. This will be useful later for identifying NOCALL exons.
+        (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCN0(intergenicFPMs)
+        logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
+                     clusterID, CN0sigma, fpmCn0)
+    else:
+        # for WGS, seq depth of intergenic and exonic regions is similar => cannot
+        # fit anything, use provided value
+        CN0sigma = wgsCN0sigma
+        # below fpmCn0 should match the calculation in fitCN0()
+        fpmCn0 = 2 * CN0sigma
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
     (Ecodes, CN2mus, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,
