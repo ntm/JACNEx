@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 ############################ PUBLIC FUNCTIONS #################################
 ###############################################################################
 ############################################
-# fitCNO:
+# fitCN0:
 # fit a half-normal distribution to FPMs in intergenicFPMs (excluding outliers).
 #
 # Args:
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # - cn0Sigma is the parameter of the fitted half-normal distribution
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
 #   have been produced by the CN0 model. Used later for filtering NOCALL exons.
-def fitCNO(intergenicFPMs):
+def fitCN0(intergenicFPMs):
     # ignore top 0.5% FPMs, assuming these may be captured (whether targeted or not)
     maxFpm = numpy.quantile(intergenicFPMs, 0.995)
     fpms = intergenicFPMs[intergenicFPMs <= maxFpm]

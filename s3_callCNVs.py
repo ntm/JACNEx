@@ -446,7 +446,7 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
     # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
     # from CN0. This will be useful later for identifying NOCALL exons.
-    (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCNO(intergenicFPMs)
+    (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCN0(intergenicFPMs)
     logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
                  clusterID, CN0sigma, fpmCn0)
 
