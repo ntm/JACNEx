@@ -76,11 +76,10 @@ def parseArgs(argv):
     plotCNVs = False
     regionsToPlot = ""
     qcPlotDir = ""
-    # JACNEx is designed for exome, but can be run with WGS data (experimental)
+    # WGS mode
     wgs = False
-    # with WGS data we must use a hard-coded CN0sigma, values between 0.01 and 0.05
-    # may be reasonable (base on what we see with exome data)
-    wgsCN0sigma = 0.03
+    # for WGS mode: sigma value of the CN0 model (between 0.01 and 0.05 could be reasonable)
+    wgsCN0sigma = 0
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
 
@@ -231,12 +230,16 @@ ARGUMENTS:
         raise Exception("padding must be a non-negative integer, not " + str(padding))
 
     if wgs:
+        if (wgsCN0sigma == 0):
+            raise Exception("in --wgs mode you MUST provide a CN0 sigma value with --wgsCN0sigma")
         try:
             wgsCN0sigma = float(wgsCN0sigma)
             if (wgsCN0sigma <= 0):
                 raise Exception()
         except Exception:
             raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
+    elif (wgsCN0sigma != 0):
+        raise Exception("you cannot specify --wgsCN0sigma without activating --wgs")
 
     try:
         jobs = int(jobs)
