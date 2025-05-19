@@ -71,6 +71,8 @@ def parseArgs(argv):
     maxGap = 1000
     tmpDir = "/tmp/"
     samtools = "samtools"
+    # WGS mode
+    wgs = False
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
 
@@ -78,7 +80,7 @@ def parseArgs(argv):
 DESCRIPTION:
 Given a BED of exons and one or more BAM files:
 - pad the exons (+- padding), merge overlapping padded exons, and create intergenic (or deep
-    intronic) pseudo-exons in the larger gaps between exons;
+    intronic) pseudo-exons in the larger gaps between exons (except in --wgs mode);
 - count the number of sequenced fragments from each BAM that overlap each (pseudo-)exon.
 Results (sample names, genomic windows, counts) are saved to --out in NPZ format.
 The "sample names" are the BAM filenames stripped of their path and .bam extension, they
@@ -104,11 +106,12 @@ ARGUMENTS:
            are assumed to possibly result from a structural variant and are ignored, default : """ + str(maxGap) + """
    --tmp [str] : pre-existing dir for temp files, faster is better (eg tmpfs), default: """ + tmpDir + """
    --samtools [str] : samtools binary (with path if not in $PATH), default: """ + samtools + """
+   --wgs: input data is WGS rather than exome
    -h , --help : display this help and exit\n"""
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "bams=", "bams-from=", "bed=", "out=", "BPDir=",
-                                                       "counts=", "jobs=", "padding=", "maxGap=", "tmp=", "samtools="])
+        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "bams=", "bams-from=", "bed=", "out=", "BPDir=", "counts=",
+                                                       "jobs=", "padding=", "maxGap=", "tmp=", "samtools=", "wgs"])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -140,6 +143,8 @@ ARGUMENTS:
             tmpDir = value
         elif opt in ("--samtools"):
             samtools = value
+        elif opt in ("--wgs"):
+            wgs = True
         else:
             raise Exception("unhandled option " + opt)
 
@@ -243,7 +248,8 @@ ARGUMENTS:
             raise Exception("BPDir " + BPDir + " doesn't exist and can't be mkdir'd: " + str(e))
 
     # AOK, return everything that's needed
-    return(bamsToProcess, samples, bedFile, outFile, BPDir, jobs, padding, maxGap, countsFile, tmpDir, samtools)
+    return(bamsToProcess, samples, bedFile, outFile, BPDir, jobs, padding, maxGap,
+           countsFile, tmpDir, samtools, wgs)
 
 
 ####################################################
@@ -307,7 +313,7 @@ def calcParaSamples(jobs, bamsToProcess, countsFilled, nbOfSamplesToProcess, tmp
 def main(argv):
     # parse, check and preprocess arguments
     (bamsToProcess, samples, bedFile, outFile, BPDir, jobs, padding, maxGap, countsFile,
-     tmpDir, samtools, wgs, wgsCN0sigma) = parseArgs(argv)
+     tmpDir, samtools, wgs) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
