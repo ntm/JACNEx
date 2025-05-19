@@ -64,6 +64,10 @@ def parseArgs(argv):
     jobs = str(jobs)
     # default log level
     logLevel = logging.INFO
+    # JACNEx is designed for exome but can be run on WGS data with --wgs (experimental).
+    # We must then use a user-provided CN0sigma, values between 0.01 and 0.05 may
+    # be reasonable (based on what we see with exome data)
+    wgsCN0sigma = "0.03"
 
     # default values of step1 optional args, as strings
     tmpDir = "/tmp/"
@@ -92,15 +96,17 @@ Global arguments:
    --plotCNVs : for each sample, produce a plotfile with exon plots for every called CNV (useful but slow)
    --regionsToPlot [str] : comma-separated list of sampleID:chr:start-end for which exon plots
            should be specifically produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
+   --wgs: input data is WGS rather than exome
+   --wgsCN0sigma [float]: will be used as the CN0 sigma parameter in WGS mode, default: """ + wgsCN0sigma + """
    --jobs [int] : cores that we can use, defaults to 80% of available cores (ie """ + jobs + """ on this computer)
    -v, --verbose : more detailed log messages
    -h , --help : display this help and exit
 
 Step 1 optional arguments, defaults should be OK:
    --tmp [str] : pre-existing dir for temp files, faster is better (eg tmpfs), default: """ + tmpDir + """
-   --padding [int] : number of bps used to pad the exon coordinates, default : """ + padding + """
+   --padding [int] : number of bps used to pad the exon coordinates, default: """ + padding + """
    --maxGap [int] : maximum accepted gap length (bp) between paired reads, pairs separated by a longer gap
-           are assumed to possibly result from a structural variant and are ignored, default : """ + maxGap + """
+           are assumed to possibly result from a structural variant and are ignored, default: """ + maxGap + """
    --samtools [str] : samtools binary (with path if not in $PATH), default: """ + samtools + """
 
 Step 2 optional arguments, defaults should be OK:
@@ -112,6 +118,7 @@ Step 3 optional arguments, defaults should be OK:
 
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'vh', ["bams=", "bams-from=", "bed=", "workDir=", "jobs=",
+                                                        "wgs", "wgsCN0sigma=",
                                                         "verbose", "help", "tmp=", "padding=", "maxGap=", "samtools=",
                                                         "minSamps=", "minGQ=", "plotCNVs", "regionsToPlot="])
     except getopt.GetoptError as e:
@@ -135,6 +142,11 @@ Step 3 optional arguments, defaults should be OK:
         elif opt in ("--jobs", "--padding"):
             step1Args.extend([opt, value])
             step3Args.extend([opt, value])
+        elif opt in ("--wgs"):
+            step1Args.extend([opt])
+            step3Args.extend([opt])
+        elif (opt in ("--wgsCN0sigma")):
+            step3Args.extend([opt, value])
         elif opt in ("--minSamps"):
             step2Args.extend([opt, value])
         elif opt in ("--minGQ", "--regionsToPlot"):
@@ -143,6 +155,9 @@ Step 3 optional arguments, defaults should be OK:
             step3Args.extend([opt])
         else:
             raise Exception("unhandled option " + opt)
+
+    if ("--wgsCN0sigma" in step3Args) and ("--wgs" not in step3Args):
+        raise Exception("you cannot specify --wgsCN0sigma without activating --wgs")
 
     # set default values if user didn't specify them
     if "--tmp" not in step1Args:
@@ -165,6 +180,8 @@ Step 3 optional arguments, defaults should be OK:
         step3Args.extend(["--padding", padding])
     if "--jobs" not in step3Args:
         step3Args.extend(["--jobs", jobs])
+    if ("--wgs" in step3Args) and ("--wgsCN0sigma" not in step3Args):
+        step3Args.extend(["--wgsCN0sigma", wgsCN0sigma])
 
     #####################################################
     # process JACNEx.py-specific options, other options will be checked by s[1-3]_*.parseArgs()
