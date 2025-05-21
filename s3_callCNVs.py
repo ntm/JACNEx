@@ -76,10 +76,8 @@ def parseArgs(argv):
     plotCNVs = False
     regionsToPlot = ""
     qcPlotDir = ""
-    # WGS mode
-    wgs = False
-    # for WGS mode: sigma value of the CN0 model (between 0.01 and 0.05 could be reasonable)
-    wgsCN0sigma = 0
+    # for WGS data: sigma value of the CN0 model (between 0.01 and 0.05 could be reasonable)
+    wgsCN0sigma = 0.0
     # jobs default: 80% of available cores
     jobs = round(0.8 * len(os.sched_getaffinity(0)))
 
@@ -123,8 +121,7 @@ ARGUMENTS:
     --regionsToPlot [str]: comma-separated list of sampleID:chr:start-end for which exon-profile
                plots will be produced, eg "grex003:chr2:270000-290000,grex007:chrX:620000-660000"
     --qcPlotDir [str]: subdir where regionsToPlot plots will be produced
-    --wgs: input data is WGS rather than exome
-    --wgsCN0sigma [float]: required if --wgs, will be used as the CN0 sigma parameter
+    --wgsCN0sigma [float]: CN0 sigma parameter, use if only if input data is WGS rather than exome
     --jobs [int]: cores that we can use, defaults to 80% of available cores ie """ + str(jobs) + "\n" + """
     -h , --help: display this help and exit\n"""
 
@@ -132,7 +129,7 @@ ARGUMENTS:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "BPDir=", "clusters=", "outDir=",
                                                        "outFile=", "minGQ=", "madeBy=", "padding=", "plotCNVs",
                                                        "cnvPlotDir=", "regionsToPlot=", "qcPlotDir=",
-                                                       "wgs", "wgsCN0sigma=", "jobs="])
+                                                       "wgsCN0sigma=", "jobs="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -166,8 +163,6 @@ ARGUMENTS:
             regionsToPlot = value
         elif (opt in ("--qcPlotDir")):
             qcPlotDir = value
-        elif opt in ("--wgs"):
-            wgs = True
         elif (opt in ("--wgsCN0sigma")):
             wgsCN0sigma = value
         elif opt in ("--jobs"):
@@ -229,17 +224,12 @@ ARGUMENTS:
     except Exception:
         raise Exception("padding must be a non-negative integer, not " + str(padding))
 
-    if wgs:
-        if (wgsCN0sigma == 0):
-            raise Exception("in --wgs mode you MUST provide a CN0 sigma value with --wgsCN0sigma")
-        try:
-            wgsCN0sigma = float(wgsCN0sigma)
-            if (wgsCN0sigma <= 0):
-                raise Exception()
-        except Exception:
-            raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
-    elif (wgsCN0sigma != 0):
-        raise Exception("you cannot specify --wgsCN0sigma without activating --wgs")
+    try:
+        wgsCN0sigma = float(wgsCN0sigma)
+        if (wgsCN0sigma < 0):
+            raise Exception()
+    except Exception:
+        raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
 
     try:
         jobs = int(jobs)
@@ -259,7 +249,7 @@ ARGUMENTS:
 
     # AOK, return everything that's needed
     return (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
-            regionsToPlot, qcPlotDir, wgs, wgsCN0sigma, jobs, madeBy)
+            regionsToPlot, qcPlotDir, wgsCN0sigma, jobs, madeBy)
 
 
 ####################################################
@@ -270,7 +260,7 @@ ARGUMENTS:
 def main(argv):
     # parse, check and preprocess arguments
     (countsFile, BPDir, clustsFile, outDir, outFile, minGQ, padding, plotCNVs, cnvPlotDir,
-     regionsToPlot, qcPlotDir, wgs, wgsCN0sigma, jobs, madeBy) = parseArgs(argv)
+     regionsToPlot, qcPlotDir, wgsCN0sigma, jobs, madeBy) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -395,7 +385,7 @@ def main(argv):
         callCNVsOneCluster(clustExonFPMs, clustIntergenicFPMs, samplesOfInterest, clustSamples,
                            clustExons, clusterFound[clusterID], plotCNVs, cnvPlotDir, RTPs, qcPlotDir,
                            clusterID, isHaploid, minGQ, clust2vcf[clusterID], BPDir, padding, madeBy,
-                           refVcfFile, wgs, wgsCN0sigma, jobs)
+                           refVcfFile, wgsCN0sigma, jobs)
 
     thisTime = time.time()
     logger.info("all clusters done,  in %.1fs", thisTime - startTime)
@@ -425,7 +415,7 @@ def main(argv):
 # - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters, these are
 #   used for fitting the CN2)
-# - intergenicFPMs (ignored if wgs): 2D-array of floats of size nbIntergenics * nbSamples,
+# - intergenicFPMs: 2D-array of floats of size nbIntergenics * nbSamples,
 #   intergenicFPMs[i,s] is the FPM count for intergenic pseudo-exon i in sample s
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
 #   is in the cluster of interest (vs being in a FITWITH cluster)
@@ -449,7 +439,7 @@ def main(argv):
 #   is FITWITH for clusterID if any ('' if clusterID is a reference cluster itself,
 #   ie it has no FITWITH), if non-empty it MUST exist ie we need to make calls for
 #   all reference clusters before starting on clusters with FITWITHs
-# - wgs (Boolean), wgsCN0sigma (float): if wgs==True, use wgsCN0sigma for the CN0
+# - wgsCN0sigma (float): if non-zero data is WGS => use wgsCN0sigma for the CN0
 #   model instead of fitting it on intergenicFPMs
 # - jobs: number of jobs for the parallelized steps (currently viterbiAllSamples())
 #
@@ -457,7 +447,7 @@ def main(argv):
 def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, exons,
                        clustFound, plotCNVs, cnvPlotDir, exonsToPlot, qcPlotDir, clusterID,
                        isHaploid, minGQ, vcfFile, BPDir, padding, madeBy, refVcfFile,
-                       wgs, wgsCN0sigma, jobs):
+                       wgsCN0sigma, jobs):
     # sanity
     if (refVcfFile != '') and (not os.path.isfile(refVcfFile)):
         logger.error("sanity: callCNVs for cluster %s but it needs VCF %s of its ref cluster!",
