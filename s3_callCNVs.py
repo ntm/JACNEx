@@ -468,21 +468,15 @@ def callCNVsOneCluster(exonFPMs, intergenicFPMs, samplesOfInterest, sampleIDs, e
     startTime = time.time()
     startTimeCluster = startTime
 
-    if not wgs:
-        # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including
-        # FITWITHs).
-        # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
-        # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
-        # from CN0. This will be useful later for identifying NOCALL exons.
-        (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCN0(intergenicFPMs)
-        logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
-                     clusterID, CN0sigma, fpmCn0)
-    else:
-        # for WGS, seq depth of intergenic and exonic regions is similar => cannot
-        # fit anything, use provided value
-        CN0sigma = wgsCN0sigma
-        # below fpmCn0 should match the calculation in fitCN0()
-        fpmCn0 = 2 * CN0sigma
+    # fit CN0 model using intergenic pseudo-exon FPMs for all samples (including FITWITHs),
+    # except if data is WGS: in this case seq depth of intergenic and exonic regions is
+    # similar => cannot fit anything, use provided wgsCN0sigma
+    # Currently CN0 is modeled with a half-normal distribution (parameter: CN0sigma).
+    # Also returns fpmCn0, an FPM value up to which data looks like it (probably) comes
+    # from CN0. This will be useful later for identifying NOCALL exons.
+    (CN0sigma, fpmCn0) = callCNVs.likelihoods.fitCN0(intergenicFPMs, wgsCN0sigma)
+    logger.debug("cluster %s - done fitCN0 -> CN0sigma=%.2f fpmCn0=%.2f",
+                 clusterID, CN0sigma, fpmCn0)
 
     # fit CN2 model for each exon using all samples in cluster (including FITWITHs)
     (Ecodes, CN2mus, CN2sigmas) = callCNVs.likelihoods.fitCN2(exonFPMs, samplesOfInterest,

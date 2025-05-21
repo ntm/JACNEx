@@ -33,23 +33,34 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 ############################################
 # fitCN0:
-# fit a half-normal distribution to FPMs in intergenicFPMs (excluding outliers).
+# fit a half-normal distribution to FPMs in intergenicFPMs (excluding outliers),
+# except for WGS data where we just use wgsCN0sigma.
 #
 # Args:
 # - intergenicFPMs numpy 2D-array of floats of size nbIntergenics * nbSamples
 #   holding the FPM-normalized counts for intergenic pseudo-exons
+# - wgsCN0sigma: if non-zero data is WGS, use this as CN0 sigma value
 #
 # Returns (cn0Sigma, fpmCn0):
-# - cn0Sigma is the parameter of the fitted half-normal distribution
+# - cn0Sigma is the parameter of the (fitted) half-normal distribution
 # - fpmCn0 is the FPM threshold up to which data looks like it could very possibly
 #   have been produced by the CN0 model. Used later for filtering NOCALL exons.
-def fitCN0(intergenicFPMs):
-    # ignore top 0.5% FPMs, assuming these may be captured (whether targeted or not)
-    maxFpm = numpy.quantile(intergenicFPMs, 0.995)
-    fpms = intergenicFPMs[intergenicFPMs <= maxFpm]
-    # maximum likelihood estimator for sigma: see wikipedia
-    fpms **= 2
-    cn0Sigma = math.sqrt(fpms.sum(dtype=numpy.float128) / fpms.size)
+def fitCN0(intergenicFPMs, wgsCN0sigma):
+    if wgsCN0sigma != 0:
+        # WGS data
+        if intergenicFPMs.size != 0:
+            raise Exception("sanity: fitCN0 called with non-empty intergenicFPMs and non-zero wgsCN0sigma")
+        else:
+            cn0Sigma = wgsCN0sigma
+    else:
+        # exome data
+        # ignore top 0.5% FPMs, assuming these may be captured (whether targeted or not)
+        maxFpm = numpy.quantile(intergenicFPMs, 0.995)
+        fpms = intergenicFPMs[intergenicFPMs <= maxFpm]
+        # maximum likelihood estimator for sigma: see wikipedia
+        fpms **= 2
+        cn0Sigma = math.sqrt(fpms.sum(dtype=numpy.float128) / fpms.size)
+    # in both cases:
     # CDF(2*sigma) ~= 95.45% of the data for a half-normal, should be fine
     fpmCn0 = 2 * cn0Sigma
     return (cn0Sigma, fpmCn0)
