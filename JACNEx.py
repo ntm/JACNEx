@@ -65,7 +65,7 @@ def parseArgs(argv):
     # default log level
     logLevel = logging.INFO
     # JACNEx is designed for exome but can be run on WGS data with --wgs (experimental).
-    # We must then use a user-provided CN0sigma, values between 0.01 and 0.05 may
+    # We must then provide CN0sigma, values between 0.01 and 0.05 may
     # be reasonable (based on what we see with exome data)
     wgsCN0sigma = "0.03"
 
@@ -144,8 +144,8 @@ Step 3 optional arguments, defaults should be OK:
             step3Args.extend([opt, value])
         elif opt in ("--wgs"):
             step1Args.extend([opt])
-            step3Args.extend([opt])
         elif (opt in ("--wgsCN0sigma")):
+            step2Args.extend([opt, value])
             step3Args.extend([opt, value])
         elif opt in ("--minSamps"):
             step2Args.extend([opt, value])
@@ -156,7 +156,7 @@ Step 3 optional arguments, defaults should be OK:
         else:
             raise Exception("unhandled option " + opt)
 
-    if ("--wgsCN0sigma" in step3Args) and ("--wgs" not in step3Args):
+    if ("--wgsCN0sigma" in step2Args) and ("--wgs" not in step1Args):
         raise Exception("you cannot specify --wgsCN0sigma without activating --wgs")
 
     # set default values if user didn't specify them
@@ -180,7 +180,8 @@ Step 3 optional arguments, defaults should be OK:
         step3Args.extend(["--padding", padding])
     if "--jobs" not in step3Args:
         step3Args.extend(["--jobs", jobs])
-    if ("--wgs" in step3Args) and ("--wgsCN0sigma" not in step3Args):
+    if ("--wgs" in step1Args) and ("--wgsCN0sigma" not in step2Args):
+        step2Args.extend(["--wgsCN0sigma", wgsCN0sigma])
         step3Args.extend(["--wgsCN0sigma", wgsCN0sigma])
 
     #####################################################

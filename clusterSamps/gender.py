@@ -23,6 +23,7 @@ import statistics
 
 ####### JACNEx modules
 import countFrags.bed
+import callCNVs.likelihoods
 
 # set up logger, using inherited config
 logger = logging.getLogger(__name__)
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 # If we're unable to assign a gender to each sample, log a warning and return an
 # all-female assignment vector. This can happen legitimately if the cohort is single-gender,
 # but it could also result from noisy / heterogeneous data, or flaws in our methodology.
-def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith):
+def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith, wgsCN0sigma):
     # sanity
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
@@ -73,13 +74,13 @@ def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith):
             samp2clust[samp] = clust
 
     ########################################
+    # FPM cut-off to characterize exons that aren't captured - use cutoff provided by fitCN0(),
+    # ignoring first returned value (CN0sigma)
+    maxFPMuncaptured = callCNVs.likelihoods.fitCN0(intergenicFPMs, wgsCN0sigma)[1]
     # "accepted" exons on chrXZ: exons that are "captured" (FPM > maxFPMuncaptured) in
     # "most" samples (at least 80%, hard-coded as 0.2 below).
     # This provides a cleaner signal when samples use different capture kits.
     XZexonsFPMs = FPMs[numpy.logical_not(exonOnY), :]
-    # FPM cut-off to roughly characterize exons that aren't captured, using intergenic
-    # pseudo-exons, hard-coded 99%-quantile over all samples and all intergenic pseudo-exons
-    maxFPMuncaptured = numpy.quantile(intergenicFPMs.ravel(), 0.99)
     twentyPercentQuantilePerExon = numpy.quantile(XZexonsFPMs, 0.2, axis=1)
     sumOfFPMsXZ = numpy.sum(XZexonsFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :], axis=0)
 
