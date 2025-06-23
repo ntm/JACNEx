@@ -327,19 +327,22 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
     res = gaussianPDF(FPMs, cn2Mu, cn2Sigma)
 
     # for fpm < fpmCn0 we want to squash the likelihood, and we want a continuous
-    # function around fpmCn0 -> using an exponential attenuation:
+    # function around fpmCn0 -> using a power-law attenuation:
     # for x >= fpmCn0 : f(x) = N(x) (where N is the Normal pdf)
-    # for x < fpmCn0 : f(x) = N(x) * exp[P * (x - fpmCn0) / fpmCn0]
-    #    where P is the attenuation power
-    # NOTE: with this function f(0) = N(0) * exp(-P) , and f is continuous around fpmCn0 as desired
-    attenuationPower = 10
+    # for x < fpmCn0 : f(x) = N(x) * {1 - [(fpmCn0 - x) / (fpmCn0 + epsilon)] ** P}
+    #    where epsilon is a small constant and P is the attenuation power
+    # NOTE: with this function f(fpmCn0) = N(0) ie f is continuous around fpmCn0 as desired,
+    # and f(0) = N(0) * {1 - [fpmCn0 / (fpmCn0 + epsilon)] ** P}
+    #     ~= N(0) * P * epsilon/fpmCn0
+    epsilon = fpmCn0 / 1e7
+    attenuationPower = 2
 
     # tried using numpy.ma.masked_where(FPMs.T >= fpmCn0,...) but exp overflows because ma
     # applies the operation on all values, even the masked ones!
     # Also, according to the doc calculations on a masked array can modify the masked values...
     # conclusion: ma is just broken and useless, using a bool index array instead
     fpmIsSmall = FPMs.T < fpmCn0
-    res[fpmIsSmall] *= numpy.exp(attenuationPower * (FPMs.T[fpmIsSmall] - fpmCn0) / fpmCn0)
+    res[fpmIsSmall] *= 1 - ((fpmCn0 - FPMs.T[fpmIsSmall]) / (fpmCn0 + epsilon)) ** attenuationPower
 
     return(res)
 
