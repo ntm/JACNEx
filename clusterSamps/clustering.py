@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
 # - minSize: min number of samples (in a cluster + its FIT_WITH friends) to declare
 #   the cluster VALID
 # - plotFile (str): filename (including path) for saving a dendrogram representing
-#   the resulting hierarchical clustering
+#   the resulting hierarchical clustering, along with a matching .txt file holding
+#   the sampleIDs in dendrogram order
 #
 # Returns (clust2samps, fitWith, clustIsValid): as defined in clustFile.py parseClustsFile(),
 # ie clusterIDs are formatted as TYPE_NUMBER where TYPE is 'A' or 'G', and:

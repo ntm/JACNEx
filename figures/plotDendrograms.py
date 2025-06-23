@@ -97,12 +97,20 @@ def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, t
             return('')
 
     ##################
-    # for trouble-shooting: log sampleIDs + clusterIDs from left to right in the dendrogram
-    # logger.debug("dendrogram leaves from left to right:")
-    # for pos in range(numSamples):
-    #     sample = samples[pos2si[pos]]
-    #     clust = samp2clust[sample]
-    #     logger.debug("%s - %s", clust, sample)
+    # log sampleIDs + clusterIDs from left to right in the dendrogram
+    legendFile = plotFile.removesuffix('.pdf') + '.txt'
+    try:
+        legendFH = open(legendFile, 'w')
+    except Exception as e:
+        logger.error("Cannot open dendrogram legend file %s: %s", legendFile, e)
+        raise Exception('cannot open dendrogram legend file for writing')
+
+    legendFH.write("dendrogram leaves from left to right:\n")
+    for pos in range(numSamples):
+        sample = samples[pos2si[pos]]
+        clust = samp2clust[sample]
+        legendFH.write(clust + " - " + sample + "\n")
+    legendFH.close()
 
     ##################
     # link colors: one color for each clusterID
