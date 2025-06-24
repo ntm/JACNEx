@@ -334,7 +334,7 @@ def cn2PDF(FPMs, cn2Mu, cn2Sigma, fpmCn0):
     # NOTE: with this function f(fpmCn0) = N(0) ie f is continuous around fpmCn0 as desired,
     # and f(0) = N(0) * {1 - [fpmCn0 / (fpmCn0 + epsilon)] ** P}
     #     ~= N(0) * P * epsilon/fpmCn0
-    epsilon = fpmCn0 / 1e7
+    epsilon = fpmCn0 / 1e6
     attenuationPower = 2
 
     # tried using numpy.ma.masked_where(FPMs.T >= fpmCn0,...) but exp overflows because ma
