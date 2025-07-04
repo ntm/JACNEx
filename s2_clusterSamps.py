@@ -79,7 +79,7 @@ ARGUMENTS:
    --out [str] : file where clusters will be saved, must not pre-exist, will be gzipped if it ends
                  with '.gz', can have a path component but the subdir must exist
    --minSamps [int]: minimum number of samples for a cluster to be declared valid, default : """ + str(minSamps) + """
-   --wgsCN0sigma [float]: CN0 sigma parameter, use if only if input data is WGS rather than exome
+   --wgsCN0sigma [float]: CN0 sigma parameter, use if input data is WGS rather than exome
    -h , --help  : display this help and exit\n"""
 
     try:
