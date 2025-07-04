@@ -170,7 +170,9 @@ ARGUMENTS:
             bamsList = open(bamsFrom, "r")
             for bam in bamsList:
                 bam = bam.rstrip()
-                bamsTmp.append(bam)
+                # ignore blank lines
+                if bam != "":
+                    bamsTmp.append(bam)
             bamsList.close()
         except Exception as e:
             raise Exception("opening provided --bams-from file " + bamsFrom + " : " + str(e))
