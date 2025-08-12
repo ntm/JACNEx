@@ -405,7 +405,7 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
     ax.set_title(title)
     ax.set_xlabel("FPM")
     ax.set_ylabel("Density")
-    ax.legend()
+    ax.legend(loc='upper right')
     ax.set_xlim(0, xcoords[-1])
     ax.set_ylim(0, limY)
     matplotFile.savefig(fig)
