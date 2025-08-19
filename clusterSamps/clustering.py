@@ -168,9 +168,8 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
 
     BLzscores = calcBLzscores(linkageMatrix, minSize)
 
-    # merge heuristic: a child wants to merge with its brother if it doesn't have any
-    # fitWith clusters (otherwise the dendrogram can show non-contiguous clusters, this
-    # doesn't make sense), and:
+    # merge heuristic: a child wants to merge with its brother if it is non-virtual
+    # (ie it has samples and no fitWiths), and:
     # - parent's distance (ie height) is <= startDist, or
     # - parent isn't "too far" relative to the child's intra-cluster branch lengths,
     #   ie BLzscore <= maxZscoreToMerge, or
@@ -189,9 +188,9 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
 
     # When examining internal node i:
     # - if both children want to merge: they are both cleared and node i is created
-    # - if only child c1 wants to merge but c2 is "mergeable" (has samples and/or fitWiths):
-    #   c1 will use c2 + clustFitWith[c2] as fitWith, c2 is left as-is, node i is created 
-    #   with no samples and full fitWith (ie it is mergeable")
+    # - if only child c1 wants to merge but c2 is "mergeable" (has samples or fitWiths):
+    #   c1 will use c2 + clustFitWith[c2] as fitWith, c2 is left as-is, node i is created
+    #   with no samples and full fitWith (ie it is mergeable)
     # - if no child wants to merge: they both stay as-is, and node i is created with
     #   no samples and no fitWith (non-mergeable)
     # At the end, the only clusters to create are those with clustSamples != None.
@@ -214,16 +213,16 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
         for ci in range(2):
             if dist <= startDist:
                 wantsToMerge[ci] = True
-            elif (not clustFitWith[children[ci]]) and (BLzscores[ni][ci] <= maxZscoreToMerge):
+            elif clustSamples[children[ci]] and (BLzscores[ni][ci] <= maxZscoreToMerge):
                 wantsToMerge[ci] = True
         for ci in range(2):
             if wantsToMerge[1 - ci] and (not wantsToMerge[ci]):
                 # ci's brother wants to merge but ci doesn't: if ci is small
-                # it can change its mind
+                # and non-virtual, it can change its mind
                 sizeCi = 1
                 if children[ci] >= numSamples:
                     sizeCi = linkageMatrix[children[ci] - numSamples, 3]
-                if (not clustFitWith[children[ci]]) and (sizeCi < minSize):
+                if clustSamples[children[ci]] and (sizeCi < minSize):
                     wantsToMerge[ci] = True
 
         if wantsToMerge[0] and wantsToMerge[1]:
@@ -263,7 +262,6 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
                     clustFitWith[c2] += clustFitWith[c1]
                     if clustSamples[c1]:
                         clustFitWith[c2].append(c1)
-
 
     ################
     # populate the clustering data structures from the Tmp lists, with proper formatting
