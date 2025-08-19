@@ -189,10 +189,11 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
 
     # When examining internal node i:
     # - if both children want to merge: they are both cleared and node i is created
-    # - if only child c1 wants to merge: c1 will use c2 + clustFitWith[c2] as fitWith,
-    #   c2 is left as-is, node i is created with no samples and full fitWith
+    # - if only child c1 wants to merge but c2 is "mergeable" (has samples and/or fitWiths):
+    #   c1 will use c2 + clustFitWith[c2] as fitWith, c2 is left as-is, node i is created 
+    #   with no samples and full fitWith (ie it is mergeable")
     # - if no child wants to merge: they both stay as-is, and node i is created with
-    #   no samples and full fitWith
+    #   no samples and no fitWith (non-mergeable)
     # At the end, the only clusters to create are those with clustSamples != None.
 
     ################
@@ -233,26 +234,36 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
             clustSamples[c2] = None
         else:
             # at most one child wants to merge
-            # in all cases thisClust will be a virtual no-sample cluster (will be useful
-            # later if thisClust is used as fitWith for another cluster)
+            # in all cases thisClust will be a virtual no-sample cluster
             clustSamples[thisClust] = None
-            clustFitWith[thisClust] = clustFitWith[c1] + clustFitWith[c2]
-            if clustSamples[c1]:
-                clustFitWith[thisClust].append(c1)
-            if clustSamples[c2]:
-                clustFitWith[thisClust].append(c2)
 
-            if wantsToMerge[0]:
-                # c1 wants to merge but not c2
-                clustFitWith[c1] += clustFitWith[c2]
-                if clustSamples[c2]:
-                    # c2 is a real cluster with samples, not a virtual "fitWith" cluster
-                    clustFitWith[c1].append(c2)
-            elif wantsToMerge[1]:
-                clustFitWith[c2] += clustFitWith[c1]
+            # if at least one child is non-mergeable, or if no child wants
+            # to merge: don't merge
+            if (((clustSamples[c1] is None) and (not clustFitWith[c1])) or
+                ((clustSamples[c2] is None) and (not clustFitWith[c2])) or
+                ((not wantsToMerge[0]) and (not wantsToMerge[1]))):
+                clustFitWith[thisClust] = []
+
+            else:
+                # exactly one child wants to merge and the other is mergeable,
+                # thisClust will be mergeable too
+                clustFitWith[thisClust] = clustFitWith[c1] + clustFitWith[c2]
                 if clustSamples[c1]:
-                    clustFitWith[c2].append(c1)
-            # else c1 and c2 don't change
+                    clustFitWith[thisClust].append(c1)
+                if clustSamples[c2]:
+                    clustFitWith[thisClust].append(c2)
+
+                if wantsToMerge[0]:
+                    # c1 wants to merge but not c2
+                    clustFitWith[c1] += clustFitWith[c2]
+                    if clustSamples[c2]:
+                        # c2 is a real cluster with samples, not a virtual "fitWith" cluster
+                        clustFitWith[c1].append(c2)
+                elif wantsToMerge[1]:
+                    clustFitWith[c2] += clustFitWith[c1]
+                    if clustSamples[c1]:
+                        clustFitWith[c2].append(c1)
+
 
     ################
     # populate the clustering data structures from the Tmp lists, with proper formatting
