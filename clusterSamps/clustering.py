@@ -82,8 +82,9 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
     # build clusters from the linkage matrix
     (clust2samps, fitWith) = linkage2clusters(linkageMatrix, chromType, samples, minSize)
 
-    # define valid clusters, ie size (including valid FIT_WITH) >= minSize , also require
-    # size (excluding FITWITHs) > 1 (otherwise we can't select CALLable exons in step3)
+    # define valid clusters, ie size (including valid FIT_WITH) >= minSize , also exclude
+    # singletons ie require size (excluding FITWITHs) > 1 (otherwise we can't select
+    # CALLable exons in step3)
     clustSizeNoFW = {}
     clustIsValid = {}
 
@@ -161,7 +162,7 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
     # current startDist heurisitic: 10% of highest node
     startDist = linkageMatrix[-1, 2] * 0.1
     maxZscoreToMerge = 3
-    logger.debug("in buildClusters, using startDist = %.2f", startDist)
+    logger.debug("in linkage2clusters, using startDist = %.2f", startDist)
 
     ################
     # a (potential) cluster, identified by its clusterIndex i (0 <= i < numSamples + numNodes), is:
