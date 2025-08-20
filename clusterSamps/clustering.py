@@ -228,8 +228,14 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
                 ((not wantsToMerge[0]) and (not wantsToMerge[1]))):
                 clustFitWith[thisClust] = []
 
+            # else if the only child that wants to merge is already large
+            # (2 * minSize), it changes its mind ie it doens't fitWith the other
+            elif ((wantsToMerge[0] and (len(clustSamples[c1]) >= 2 * minSize)) or
+                  (wantsToMerge[1] and (len(clustSamples[c2]) >= 2 * minSize))):
+                clustFitWith[thisClust] = []
+
             else:
-                # exactly one child wants to merge and the other is mergeable,
+                # exactly one child wants to merge and it's not large and the other is mergeable,
                 # thisClust will be mergeable too
                 clustFitWith[thisClust] = clustFitWith[c1] + clustFitWith[c2]
                 if clustSamples[c1]:
