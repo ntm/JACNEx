@@ -62,29 +62,13 @@ logger = logging.getLogger(__name__)
 def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
     # reduce dimensionality with PCA
     # choosing the optimal number of dimensions is difficult, but should't matter
-    # much as long as we're in the right ballpark -> our heuristic:
-    # only keep dimensions that explain > minExplainedVar variance ratio
-    minExplainedVar = 0.015
-
-    # we want at most maxDims dimensions (should be more than enough for any dataset)
-    maxDims = 20
-    maxDims = min(maxDims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
-    pca = sklearn.decomposition.PCA(n_components=maxDims, svd_solver='full').fit(FPMarray.T)
-    logMess = "in buildClusters while choosing the PCA dimension, explained variance ratio:"
-    logger.debug(logMess)
-    logMess = numpy.array_str(pca.explained_variance_ratio_, max_line_width=200, precision=3)
-    logger.debug(logMess)
-
-    dim = 0
-    while ((dim < maxDims) and (pca.explained_variance_ratio_[dim] > minExplainedVar)):
-        dim += 1
-    if dim == 0:
-        logger.warning("in buildClusters: no informative PCA dimensions, very unusual... setting dim=maxDims")
-        dim = maxDims
-    logger.debug("in buildClusters with chromType=%s, chosen number of PCA dimensions = %i", chromType, dim)
-    # project samples and truncate to dim dimensions
+    # much as long as we're in the right ballpark...
+    # In our tests (08/2025) a hard-coded value of 50 works great, 20 or 100 seemd OK too
+    dims = 50
+    dims = min(dims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
+    pca = sklearn.decomposition.PCA(n_components=dims, svd_solver='full').fit(FPMarray.T)
+    # project samples
     samplesInPCAspace = pca.transform(FPMarray.T)
-    samplesInPCAspace = numpy.delete(samplesInPCAspace, numpy.s_[dim:maxDims], 1)
 
     # hierarchical clustering of the samples projected in the PCA space:
     # - use 'average' method to define the distance between clusters (== UPGMA),
@@ -140,7 +124,7 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
     # produce and plot dendrogram
     if os.path.isfile(plotFile):
         logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
-    title = "chromType = " + chromType + " ,  PCA dimensions = " + str(dim)
+    title = "chromType = " + chromType + " ,  PCA dimensions = " + str(dims)
     figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, title, plotFile)
 
     return(clust2samps, fitWith, clustIsValid)
