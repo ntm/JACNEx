@@ -64,7 +64,7 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
     # choosing the optimal number of dimensions is difficult, but should't matter
     # much as long as we're in the right ballpark...
     # In our tests (08/2025) a hard-coded value of 50 works great, 20 or 100 seemd OK too
-    dims = 50
+    dims = 20
     dims = min(dims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
     pca = sklearn.decomposition.PCA(n_components=dims, svd_solver='full').fit(FPMarray.T)
     # project samples
