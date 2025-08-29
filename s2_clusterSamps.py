@@ -192,9 +192,8 @@ def main(argv):
 
     # autosomes
     try:
-        plotFile = dendroFileRoot + "_autosomes.pdf"
         (clust2samps, fitWith, clustIsValid) = clusterSamps.clustering.buildClusters(
-            autosomeFPMs, "A", samples, minSamps, plotFile)
+            autosomeFPMs, "A", samples, minSamps, dendroFileRoot)
     except Exception as e:
         logger.error("buildClusters failed for autosomes: %s", str(e))
         raise Exception("buildClusters failed")
@@ -205,9 +204,8 @@ def main(argv):
 
     # sex chromosomes
     try:
-        plotFile = dendroFileRoot + "_gonosomes.pdf"
         (clust2sampsGono, fitWithGono, clustIsValidGono) = clusterSamps.clustering.buildClusters(
-            gonosomeFPMs, "G", samples, minSamps, plotFile)
+            gonosomeFPMs, "G", samples, minSamps, dendroFileRoot)
     except Exception as e:
         logger.error("buildClusters failed for gonosomes: %s", str(e))
         raise Exception("buildClusters failed")

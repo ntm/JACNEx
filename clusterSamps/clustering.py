@@ -50,16 +50,16 @@ logger = logging.getLogger(__name__)
 # - samples: list of sampleIDs, same order as the columns of FPMarray
 # - minSize: min number of samples (in a cluster + its FIT_WITH friends) to declare
 #   the cluster VALID
-# - plotFile (str): filename (including path) for saving a dendrogram representing
-#   the resulting hierarchical clustering, along with a matching .txt file holding
-#   the sampleIDs in dendrogram order
+# - dendroFileRoot (str): prefix of filename (including path) for saving dendrograms
+#   representing the resulting hierarchical clustering, along with a matching .txt file
+#   holding the sampleIDs in dendrogram order
 #
 # Returns (clust2samps, fitWith, clustIsValid): as defined in clustFile.py parseClustsFile(),
 # ie clusterIDs are formatted as TYPE_NUMBER where TYPE is 'A' or 'G', and:
 # - clust2samps: dict, key==clusterID, value == list of sampleIDs
 # - fitWith: dict, key==clusterID, value == list of clusterIDs
 # - clustIsValid: dict, key==clusterID, value == Boolean
-def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
+def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
     # reduce dimensionality with PCA
     # choosing the optimal number of dimensions is difficult, but should't matter
     # much as long as we're in the right ballpark...
@@ -123,6 +123,10 @@ def buildClusters(FPMarray, chromType, samples, minSize, plotFile):
         fitWith[clust] = validFWs
 
     # produce and plot dendrogram
+    if chromType == 'A':
+        plotFile = dendroFileRoot + "_autosomes.pdf"
+    else:
+        plotFile = dendroFileRoot + "_gonosomes.pdf"
     if os.path.isfile(plotFile):
         logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
     title = "chromType = " + chromType + " ,  PCA dimensions = " + str(dims)
