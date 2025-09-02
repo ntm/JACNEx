@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # - minSize: min number of samples (in a cluster + its FIT_WITH friends) to declare
 #   the cluster VALID
 # - dendroFileRoot (str): prefix of filename (including path) for saving dendrograms
-#   representing the resulting hierarchical clustering, along with a matching .txt file
+#   representing the resulting hierarchical clusterings, along with matching .txt files
 #   holding the sampleIDs in dendrogram order
 #
 # Returns (clust2samps, fitWith, clustIsValid): as defined in clustFile.py parseClustsFile(),
@@ -59,36 +59,42 @@ logger = logging.getLogger(__name__)
 # - fitWith: dict, key==clusterID, value == list of clusterIDs
 # - clustIsValid: dict, key==clusterID, value == Boolean
 def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
-    # reduce dimensionality with PCA
-    # choosing the optimal number of dimensions is difficult, but should't matter
-    # much as long as we're in the right ballpark...
-    # In our tests (08/2025) a hard-coded value of 50 works great, 20 or 100 seemd OK too
-    dims = 20
-    dims = min(dims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
-    pca = sklearn.decomposition.PCA(n_components=dims, svd_solver='full').fit(FPMarray.T)
-    # project samples
-    samplesInPCAspace = pca.transform(FPMarray.T)
+    # data structures to return
+    clust2samps = {}
+    fitWith = {}
+    clustIsValid = {}
 
-    # hierarchical clustering of the samples projected in the PCA space:
-    # - use 'average' method to define the distance between clusters (== UPGMA),
-    #   not sure why but AS did a lot of testing and says it is the best choice
-    #   when there are different-sized groups;
-    # - use 'euclidean' metric to define initial distances between samples;
-    # - reorder the linkage matrix so the distance between successive leaves is minimal
-    linkageMatrix = scipy.cluster.hierarchy.linkage(samplesInPCAspace, method='average',
-                                                    metric='euclidean', optimal_ordering=True)
+    (clusters, fitWithPrev) = clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, "root")
 
-    # build clusters from the linkage matrix
-    (clust2samps, fitWith) = linkage2clusters(linkageMatrix, chromType, samples, minSize)
+    # we want clusters to be numbered increasingly by decreasing numbers of samples
+    clustIndexes = list(range(len(clusters)))
+    clustIndexes.sort(key=lambda ci: len(clusters[ci]), reverse=True)
+
+    # clustIndex2ID[i] is the ID of clusters[i]
+    clustIndex2ID = [None] * len(clusters)
+    nextClustNb = 1
+    for thisClust in clustIndexes:
+        # left-pad with leading zeroes if less than 2 digits (for pretty-sorting, won't
+        # sort correctly if more than 100 clusters but it's just cosmetic)
+        clustID = chromType + '_' + f"{nextClustNb:02}"
+        clustIndex2ID[thisClust] = clustID
+        nextClustNb += 1
+        clust2samps[clustID] = clusters[thisClust]
+        clust2samps[clustID].sort()
+        fitWith[clustID] = []
+
+    # populate fitWith
+    for thisClust in range(len(clusters)):
+        if fitWithPrev[thisClust]:
+            fitWith[clustIndex2ID[thisClust]] = [clustIndex2ID[thisClust - 1]]
 
     # define valid clusters, ie size (including valid FIT_WITH) >= minSize , also exclude
     # singletons ie require size (excluding FITWITHs) > 1 (otherwise we can't select
     # CALLable exons in step3)
     clustSizeNoFW = {}
-    clustIsValid = {}
 
-    # need to examine the clusters sorted by number of (other) clusters in their fitWith
-    nbFW2clusts = [None] * len(clust2samps)
+    # need to examine the clusters sorted by number of clusters in their fitWith
+    nbFW2clusts = [None] * len(clusters)
 
     for clust in clust2samps:
         clustSizeNoFW[clust] = len(clust2samps[clust])
@@ -121,16 +127,6 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
                 validFWs.append(fw)
         fitWith[clust] = validFWs
 
-    # produce and plot dendrogram
-    if chromType == 'A':
-        plotFile = dendroFileRoot + "_autosomes.pdf"
-    else:
-        plotFile = dendroFileRoot + "_gonosomes.pdf"
-    if os.path.isfile(plotFile):
-        logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
-    title = "chromType = " + chromType + " ,  PCA dimensions = " + str(dims)
-    figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, title, plotFile)
-
     return(clust2samps, fitWith, clustIsValid)
 
 
@@ -138,19 +134,110 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
 ############################ PRIVATE FUNCTIONS ################################
 ###############################################################################
 
+#############################
+# Identify clusters of similar samples:
+# reduce dimensionality with PCA, perform hierarchical clustering, interpret
+# result -> if we have one or two clean clusters we are done, otherwise if the
+# data is more complex we recursively apply the same procedure on each child of
+# the root node.
+# Args are the same as buildClusters() except dendroID: identifies this call in
+# the series of recursive clusterize() calls, always starting with "root" and
+# then "-L" when going down on left side and "-R" on right.
+#
+# Return (clusters, fitWithPrev):
+# clusters = list of clusters, one cluster is a list of sampleIDs
+# fitWithPrev = list of Bools, same length as clusters, True iff cluster[i]
+#   is fitWith cluster[i-1]
+def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
+    if (len(samples) < minSize):
+        # not enough samples to be valid, no point in doing anything
+        return([samples], [False])
+
+    # reduce dimensionality with PCA
+    # choosing the optimal number of dimensions is difficult, but should't matter
+    # much as long as we're in the right ballpark...
+    # In our tests (08/2025) a hard-coded value of 20 works well on all combinations
+    # of samples that we tried
+    dims = 10
+    dims = min(dims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
+    pca = sklearn.decomposition.PCA(n_components=dims, svd_solver='full').fit(FPMarray.T)
+    # project samples
+    samplesInPCAspace = pca.transform(FPMarray.T)
+
+    # hierarchical clustering of the samples projected in the PCA space:
+    # - use 'average' method to define the distance between clusters (== UPGMA),
+    #   not sure why but AS did a lot of testing and says it is the best choice
+    #   when there are different-sized groups;
+    # - use 'euclidean' metric to define initial distances between samples;
+    # - reorder the linkage matrix so the distance between successive leaves is minimal
+    linkageMatrix = scipy.cluster.hierarchy.linkage(samplesInPCAspace, method='average',
+                                                    metric='euclidean', optimal_ordering=True)
+
+    # does linkage represent a clean clustering into 1 or 2 clusters?
+    (status, si1, si2, c2sFull, fwFull) = interpretLinkage(linkageMatrix, minSize, samples)
+
+    # prepare stuff and call plotDendrogram()
+    if chromType == 'A':
+        plotFile = dendroFileRoot + "_autosomes_" + dendroID + ".pdf"
+    else:
+        plotFile = dendroFileRoot + "_gonosomes_" + dendroID + ".pdf"
+    if os.path.isfile(plotFile):
+        logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
+    title = "chromType = " + chromType + " ,  hierarchical clustering ID: " + dendroID
+    if status == 0:
+        title += " , one clean cluster"
+    elif status < 3:
+        title += " , two clean clusters"
+    else:
+        title += " , more than two clusters, will recurse on each child"
+    figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, c2sFull, fwFull, title, plotFile)
+
+    # recursively clusterize each child of root if needed, and return
+    if status == 0:
+        return([samples], [False])
+    else:
+        # at least 2 clusters, need the lists of sampleIDs under each child
+        samples1 = [samples[i] for i in si1]
+        samples2 = [samples[i] for i in si2]
+        if status == 1:
+            return([samples1, samples2], [False, False])
+        elif status == 2:
+            # second cluster is fitWith  first cluster
+            return([samples1, samples2], [False, True])
+        else:
+            # partition samples and redo clustering
+            (clusters1, fitWithPrev1) = clusterize(FPMarray[:, si1], chromType, samples1,
+                                                   minSize, dendroFileRoot, dendroID + "-Lo")
+            (clusters2, fitWithPrev2) = clusterize(FPMarray[:, si2], chromType, samples2,
+                                                   minSize, dendroFileRoot, dendroID + "-Hi")
+            clusters1.extend(clusters2)
+            fitWithPrev1.extend(fitWithPrev2)
+            return(clusters1, fitWithPrev1)
+
 
 #############################
-# Build clusters from the linkage matrix.
+# Given a linkage matrix, decide if it represents a single cluster, two clusters
+# (one for each child of the root node) with one possibly fitWith the other, or
+# if we need to redo the clustering independantly on the samples descending
+# from each child of the root node.
 #
 # Args:
 # - linkageMatrix: as returned by scipy.cluster.hierarchy.linkage
-# - chromType, samples: same args as buildClusters(), used for formatting/populating
-#   the returned data structures
 # - minSize: min number of smaples for a cluster to be valid, used in the heuristic that
 #   decides whether children want to merge (smaller clusters have increased desire to merge)
+# - sampleIDs (list of strings), same number and order as in linkageMatrix
 #
-# Returns (clust2samps, fitWith) as specified in the header of buildClusters()
-def linkage2clusters(linkageMatrix, chromType, samples, minSize):
+# Returns (status, sampleIndexes1, sampleIndexes2, clust2samps, fitWith):
+# (status, sampleIndexes1, sampleIndexes2) are the main beef:
+# - if all samples form a single cluster -> (0, None, None)
+# - elsif the samples form 2 independant clusters -> (1, si1, si2) where si1 and si2 are the
+#     lists of indexes (in samples) of the samples in each cluster
+# - elsif the samples form 2 clusters but the second is FitWith the first -> (2, si1, si2)
+# - else there are >= 3 clusters, we will need to redo the clustering independantly on
+#     the samples descending from each child of the root node -> (3, si1, si2)
+# (clust2samps, fitWith) are just for plotting the dendrogram for this specific
+# (transient) clustering, the clusterIDs are bogus
+def interpretLinkage(linkageMatrix, minSize, sampleIDs):
     numNodes = linkageMatrix.shape[0]
     numSamples = numNodes + 1
 
@@ -165,7 +252,7 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
     # current startDist heurisitic: 10% of highest node
     startDist = linkageMatrix[-1, 2] * 0.1
     maxZscoreToMerge = 3
-    logger.debug("in linkage2clusters, using startDist = %.2f", startDist)
+    logger.debug("in interpretLinkage, using startDist = %.2f", startDist)
 
     ################
     # a (potential) cluster, identified by its clusterIndex i (0 <= i < numSamples + numNodes), is:
@@ -184,6 +271,8 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
     # At the end, the only clusters to create are those with clustSamples != None.
 
     ################
+    # populate clustSamples and clustFitWith
+
     # leaves, ie singleton samples
     for i in range(numSamples):
         clustSamples[i] = [i]
@@ -258,40 +347,78 @@ def linkage2clusters(linkageMatrix, chromType, samples, minSize):
                         clustFitWith[c2].append(c1)
 
     ################
-    # populate the clustering data structures from the Tmp lists, with proper formatting
+    # populate the full clust2samps and fitWith (with bogus clusterIDs), used for plotting
+    # the dendrogram of this (transient) clustering
     clust2samps = {}
     fitWith = {}
-
-    # populate clustIndex2ID with correctly constructed clusterIDs for each non-virtual cluster index
+    # find all non-virtual cluster indexes and build their bogus clusterIDs
     clustIndex2ID = [None] * len(clustSamples)
-
-    # we want clusters to be numbered increasingly by decreasing numbers of samples
-    clustIndexes = []
-    # find all non-virtual cluster indexes
+    nextClustNb = 1
     for thisClust in range(len(clustSamples)):
         if clustSamples[thisClust]:
-            clustIndexes.append(thisClust)
-    # sort them by decreasing numbers of samples
-    clustIndexes.sort(key=lambda ci: len(clustSamples[ci]), reverse=True)
-
-    nextClustNb = 1
-    for thisClust in clustIndexes:
-        # left-pad with leading zeroes if less than 2 digits (for pretty-sorting, won't
-        # sort correctly if more than 100 clusters but it's just cosmetic)
-        clustID = chromType + '_' + f"{nextClustNb:02}"
-        clustIndex2ID[thisClust] = clustID
-        nextClustNb += 1
-        clust2samps[clustID] = [samples[i] for i in clustSamples[thisClust]]
-        clust2samps[clustID].sort()
-        fitWith[clustID] = []
-
-    for thisClust in clustIndexes:
+            clustID = "C" + '_' + f"{nextClustNb:02}"
+            clustIndex2ID[thisClust] = clustID
+            nextClustNb += 1
+            clust2samps[clustID] = [sampleIDs[i] for i in clustSamples[thisClust]]
+            clust2samps[clustID].sort()
+            fitWith[clustID] = []
+    for thisClust in range(len(clustSamples)):
         if clustFitWith[thisClust]:
             clustID = clustIndex2ID[thisClust]
             fitWith[clustID] = [clustIndex2ID[i] for i in clustFitWith[thisClust]]
             fitWith[clustID].sort()
 
-    return (clust2samps, fitWith)
+    ################
+    if clustSamples[numSamples + numNodes - 1]:
+        # we have a single cluster
+        retVal = (0, None, None)
+    else:
+        (c1, c2, dist, size) = linkageMatrix[-1]
+        c1 = int(c1)
+        c2 = int(c2)
+        if clustSamples[c1] and clustSamples[c2]:
+            # we have 2 clusters...
+            if clustFitWith[c1]:
+                # c1 is FitWith c2
+                # sanity:
+                if (len(clustFitWith[c1]) != 1) or (clustFitWith[c1] != [c2]) or clustFitWith[c2]:
+                    logger.error("sanity check failed in interpretLinkage()")
+                    raise Exception("interpretLinkage sanity check failed")
+                retVal = (2, clustSamples[c2], clustSamples[c1])
+            elif clustFitWith[c2]:
+                # c2 is FitWith c1
+                # sanity:
+                if (len(clustFitWith[c2]) != 1) or (clustFitWith[c2] != [c1]) or clustFitWith[c1]:
+                    logger.error("sanity check failed in interpretLinkage()")
+                    raise Exception("interpretLinkage sanity check failed")
+                retVal = (2, clustSamples[c1], clustSamples[c2])
+            else:
+                # 2 independant clusters
+                retVal = (1, clustSamples[c1], clustSamples[c2])
+        else:
+            # more than 2 clusters, find all samples underneath c1 and c2
+            si1 = samplesUnderNode(linkageMatrix, clustSamples, numSamples, c1)
+            si2 = samplesUnderNode(linkageMatrix, clustSamples, numSamples, c2)
+            retVal = (3, si1, si2)
+    retVal += (clust2samps, fitWith)
+    return(retVal)
+
+
+#############################
+# return the sorted list of samples present in any cluster underneath "node"
+def samplesUnderNode(linkageMatrix, clustSamples, numSamples, node):
+    samples = []
+    nodesToExamine = [node]
+    while (nodesToExamine):
+        thisNode = nodesToExamine.pop(0)
+        if clustSamples[thisNode]:
+            samples.extend(clustSamples[thisNode])
+        else:
+            # no samples in thisNode, look in its children
+            (c1, c2, dist, size) = linkageMatrix[thisNode - numSamples]
+            nodesToExamine.extend([int(c1), int(c2)])
+    samples.sort()
+    return(samples)
 
 
 #############################

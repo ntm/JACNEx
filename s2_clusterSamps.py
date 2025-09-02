@@ -182,7 +182,7 @@ def main(argv):
     # karyotype (predominantly on the X: in our hands XXY samples always cluster with XX
     # samples, not with XY ones)
 
-    # build root name for dendrograms, will just need to append autosomes.pdf or gonosomes.pdf
+    # build root name for dendrograms, will just need to append autosomes-*.pdf or gonosomes-*.pdf
     dendroFileRoot = outFile
     # remove file extension (.tsv probably), and also .gz if present
     if dendroFileRoot.endswith(".gz"):
