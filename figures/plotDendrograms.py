@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 # and the link colors, which should represent the constructed clusters.
 # Args: see calling code in buildClusters()
 # Produces plotFile (pdf format), returns nothing
-def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, title, plotFile):
+def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, title, plotFile):
     numSamples = len(samples)
     # build samp2clust for efficiency: key==sampleID, value==clusterID
     samp2clust = {}
@@ -48,8 +48,7 @@ def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, t
     ##################
     # leaf labels: we want to label the "middle" sample (visually in the dendrogram) of each
     # cluster with the clusterID eg 'A_02', other samples don't get labeled;
-    # furthermore: if the cluster needs friends for fitting it gets lowercased eg 'a_02', and if it
-    # is invalid it is lowercased and parenthesized eg '(a_02)'
+    # furthermore: if the cluster needs friends for fitting it gets lowercased eg 'a_02'
     # key == sample index in samples (only defined for samples that get labeled), value == label
     sampi2label = {}
     # Also populate clust2color: key==clusterID, value == matplotlib color string code, we want to
@@ -77,11 +76,9 @@ def plotDendrogram(linkageMatrix, samples, clust2samps, fitWith, clustIsValid, t
         # the leaf in the middle
         posToLabel = nextPos + (len(clust2samps[nextClust]) - 1) // 2
 
-        # create label for this cluster, "decorated" if it needs friends / is invalid
+        # create label for this cluster, "decorated" if it needs friends
         label = ""
-        if not clustIsValid[nextClust]:
-            label = '(' + nextClust.lower() + ')'
-        elif len(fitWith[nextClust]) > 0:
+        if len(fitWith[nextClust]) > 0:
             label = nextClust.lower()
         else:
             label = nextClust
