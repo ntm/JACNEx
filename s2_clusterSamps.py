@@ -72,7 +72,7 @@ Each gonosome cluster is (should be!) single-gender, this gender is predicted an
 printed in the GENDER column (and used in step s3).
 Results are printed to --out in TSV format: 5 columns
 [CLUSTER_ID, FIT_WITH, GENDER, VALID, SAMPLES]
-In addition, dendrograms of the clustering results are produced as pdf + matching text files alongside outFile.
+In addition, dendrograms are produced as pdf + matching text files alongside outFile.
 
 ARGUMENTS:
    --counts [str]: NPZ file with the fragment counts, produced by s1_countFrags.py

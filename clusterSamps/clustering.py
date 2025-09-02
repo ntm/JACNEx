@@ -18,7 +18,6 @@
 
 
 import logging
-import numpy
 import os
 import scipy.cluster.hierarchy  # hierachical clustering
 import sklearn.decomposition  # PCA
