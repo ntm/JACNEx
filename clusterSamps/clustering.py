@@ -84,9 +84,14 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
         fitWith[clustID] = []
 
     # populate fitWith
+    thisFitWith = []
     for thisClust in range(len(clusters)):
         if fitWithPrev[thisClust]:
-            fitWith[clustIndex2ID[thisClust]] = [clustIndex2ID[thisClust - 1]]
+            fitWith[clustIndex2ID[thisClust]] = thisFitWith.copy()
+            thisFitWith.append(clustIndex2ID[thisClust])
+        else:
+            # main cluster, restart thisFitWith
+            thisFitWith = [clustIndex2ID[thisClust]]
 
     # define valid clusters, ie size (including valid FIT_WITH) >= minSize , also exclude
     # singletons ie require size (excluding FITWITHs) > 1 (otherwise we can't select
@@ -147,7 +152,7 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
 # Return (clusters, fitWithPrev):
 # clusters = list of clusters, one cluster is a list of sampleIDs
 # fitWithPrev = list of Bools, same length as clusters, True iff cluster[i]
-#   is fitWith cluster[i-1]
+#   is fitWith cluster[i-1] (and any clusters that i-1 itself is fitWith)
 def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
     if (len(samples) < minSize):
         # not enough samples to be valid, no point in doing anything
@@ -173,8 +178,8 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
     linkageMatrix = scipy.cluster.hierarchy.linkage(samplesInPCAspace, method='average',
                                                     metric='euclidean', optimal_ordering=True)
 
-    # does linkage represent a clean clustering into 1 or 2 clusters?
-    (status, si1, si2, c2sFull, fwFull) = interpretLinkage(linkageMatrix, minSize, samples)
+    # does linkage represent a clean clustering?
+    (status, samplePartition, c2sFull, fwFull) = interpretLinkage(linkageMatrix, minSize, samples)
 
     # prepare stuff and call plotDendrogram()
     if chromType == 'A':
@@ -185,41 +190,47 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
         logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
     title = "chromType = " + chromType + " ,  hierarchical clustering ID: " + dendroID
     if status == 0:
-        title += " , one clean cluster"
-    elif status < 3:
-        title += " , two clean clusters"
+        title += " , one main cluster (+ possibly fitWiths)"
+    elif status == 1:
+        title += " , two main clusters"
     else:
         title += " , more than two clusters, will recurse on each child"
     figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, c2sFull, fwFull, title, plotFile)
 
     # recursively clusterize each child of root if needed, and return
+    clusters = []
+    fitWithPrev = []
     if status == 0:
-        return([samples], [False])
+        # first cluster is the main, any other clusters are nested fitWiths
+        for parti in range(len(samplePartition)):
+            clusters.append([samples[i] for i in samplePartition[parti]])
+            # default to being fitWith...
+            fitWithPrev.append(True)
+        # now fix to main for first cluster
+        fitWithPrev[0] = False
+    elif status == 1:
+        # two independant clusters
+        for parti in (0, 1):
+            clusters.append([samples[i] for i in samplePartition[parti]])
+            fitWithPrev.append(False)
     else:
-        # at least 2 clusters, need the lists of sampleIDs under each child
-        samples1 = [samples[i] for i in si1]
-        samples2 = [samples[i] for i in si2]
-        if status == 1:
-            return([samples1, samples2], [False, False])
-        elif status == 2:
-            # second cluster is fitWith  first cluster
-            return([samples1, samples2], [False, True])
-        else:
-            # partition samples and redo clustering
-            (clusters1, fitWithPrev1) = clusterize(FPMarray[:, si1], chromType, samples1,
-                                                   minSize, dendroFileRoot, dendroID + "-Lo")
-            (clusters2, fitWithPrev2) = clusterize(FPMarray[:, si2], chromType, samples2,
-                                                   minSize, dendroFileRoot, dendroID + "-Hi")
-            clusters1.extend(clusters2)
-            fitWithPrev1.extend(fitWithPrev2)
-            return(clusters1, fitWithPrev1)
+        # need to redo clustering on each child
+        samples1 = [samples[i] for i in samplePartition[0]]
+        samples2 = [samples[i] for i in samplePartition[1]]
+        (clusters, fitWithPrev) = clusterize(FPMarray[:, samplePartition[0]], chromType, samples1,
+                                             minSize, dendroFileRoot, dendroID + "-Lo")
+        (clusters2, fitWithPrev2) = clusterize(FPMarray[:, samplePartition[1]], chromType, samples2,
+                                               minSize, dendroFileRoot, dendroID + "-Hi")
+        clusters.extend(clusters2)
+        fitWithPrev.extend(fitWithPrev2)
+    return(clusters, fitWithPrev)
 
 
 #############################
-# Given a linkage matrix, decide if it represents a single cluster, two clusters
-# (one for each child of the root node) with one possibly fitWith the other, or
-# if we need to redo the clustering independantly on the samples descending
-# from each child of the root node.
+# Given a linkage matrix, decide if it represents a directly usable clustering
+# (ie a single no-fitWiths cluster + zero or more fitWith clusters, or two
+# clean no-fitWith clusters), or if we need to redo the clustering independantly
+# on the samples descending from each child of the root node.
 #
 # Args:
 # - linkageMatrix: as returned by scipy.cluster.hierarchy.linkage
@@ -227,14 +238,15 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
 #   decides whether children want to merge (smaller clusters have increased desire to merge)
 # - sampleIDs (list of strings), same number and order as in linkageMatrix
 #
-# Returns (status, sampleIndexes1, sampleIndexes2, clust2samps, fitWith):
-# (status, sampleIndexes1, sampleIndexes2) are the main beef:
-# - if all samples form a single cluster -> (0, None, None)
-# - elsif the samples form 2 independant clusters -> (1, si1, si2) where si1 and si2 are the
-#     lists of indexes (in samples) of the samples in each cluster
-# - elsif the samples form 2 clusters but the second is FitWith the first -> (2, si1, si2)
-# - else there are >= 3 clusters, we will need to redo the clustering independantly on
-#     the samples descending from each child of the root node -> (3, si1, si2)
+# Returns (status, samplePartition, clust2samps, fitWith):
+# samplePartition is a list of lists of ints (== indexes in samples),
+# (status, samplePartition) are the main beef:
+# - if clustering has a single main cluster -> status=0, the first list of samplePartition
+#   is the main cluster and then each consecutive list is fitWith all preceding ones;
+# - elsif the samples form 2 independant clusters without fitWiths -> status==1
+#   and len(samplePartition)==2;
+# - else we will need to redo the clustering independantly on the samples descending
+#   from each child of the root node -> status==2 and len(samplePartition)==2.
 # (clust2samps, fitWith) are just for plotting the dendrogram for this specific
 # (transient) clustering, the clusterIDs are bogus
 def interpretLinkage(linkageMatrix, minSize, sampleIDs):
@@ -369,37 +381,49 @@ def interpretLinkage(linkageMatrix, minSize, sampleIDs):
             fitWith[clustID].sort()
 
     ################
-    if clustSamples[numSamples + numNodes - 1]:
+    if clustSamples[-1]:
         # we have a single cluster
-        retVal = (0, None, None)
+        retVal = (0, [list(range(numSamples))])
+    elif clustFitWith[-1]:
+        # a single main cluster and some nested fitWiths
+        # at each node, one child has samples+fitWith and the other is either
+        # the main (samples and no fitWith), or it's a virtual no-samples cluster
+        thisNode = -1
+        samplePartition = []
+        while(1):
+            (c1, c2, dist, size) = linkageMatrix[thisNode]
+            c1 = int(c1)
+            c2 = int(c2)
+            if clustSamples[c1] and clustFitWith[c1]:
+                # switch so c2 is always the fitWith cluster
+                ctmp = c1
+                c1 = c2
+                c2 = ctmp
+            # append to end of list, we will reverse at the end
+            samplePartition.append(clustSamples[c2])
+            if clustSamples[c1]:
+                # c1 is the main cluster
+                if clustFitWith[c1]:
+                    logger.error("sanity check failed in interpretLinkage(), main cluster has fitWiths")
+                    raise Exception("interpretLinkage sanity check failed")
+                samplePartition.append(clustSamples[c1])
+                samplePartition.reverse()
+                break
+            # else c1 is virtual, analyze it
+            thisNode = c1 - numSamples
+        retVal = (0, samplePartition)
     else:
         (c1, c2, dist, size) = linkageMatrix[-1]
         c1 = int(c1)
         c2 = int(c2)
         if clustSamples[c1] and clustSamples[c2]:
-            # we have 2 clusters...
-            if clustFitWith[c1]:
-                # c1 is FitWith c2
-                # sanity:
-                if (len(clustFitWith[c1]) != 1) or (clustFitWith[c1] != [c2]) or clustFitWith[c2]:
-                    logger.error("sanity check failed in interpretLinkage()")
-                    raise Exception("interpretLinkage sanity check failed")
-                retVal = (2, clustSamples[c2], clustSamples[c1])
-            elif clustFitWith[c2]:
-                # c2 is FitWith c1
-                # sanity:
-                if (len(clustFitWith[c2]) != 1) or (clustFitWith[c2] != [c1]) or clustFitWith[c1]:
-                    logger.error("sanity check failed in interpretLinkage()")
-                    raise Exception("interpretLinkage sanity check failed")
-                retVal = (2, clustSamples[c1], clustSamples[c2])
-            else:
-                # 2 independant clusters
-                retVal = (1, clustSamples[c1], clustSamples[c2])
+            # we have 2 independant clusters
+            retVal = (1, [clustSamples[c1], clustSamples[c2]])
         else:
             # more than 2 clusters, find all samples underneath c1 and c2
             si1 = samplesUnderNode(linkageMatrix, clustSamples, numSamples, c1)
             si2 = samplesUnderNode(linkageMatrix, clustSamples, numSamples, c2)
-            retVal = (3, si1, si2)
+            retVal = (2, [si1, si2])
     retVal += (clust2samps, fitWith)
     return(retVal)
 
