@@ -66,7 +66,7 @@ def parseArgs(argv):
 DESCRIPTION:
 Given a NPZ file with fragment counts, build clusters of "similar" samples that
 will be used as controls for one another.
-Clusters are built independantly for exons on autosomes ('A') and  on gonosomes ('G').
+Clusters are built independently for exons on autosomes ('A') and  on gonosomes ('G').
 The accepted sex chromosomes are X, Y, Z, and W.
 Each gonosome cluster is (should be!) single-gender, this gender is predicted and
 printed in the GENDER column (and used in step s3).

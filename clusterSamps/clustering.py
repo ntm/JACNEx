@@ -209,7 +209,7 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
         # now fix to main for first cluster
         fitWithPrev[0] = False
     elif status == 1:
-        # two independant clusters
+        # two independent clusters
         for parti in (0, 1):
             clusters.append([samples[i] for i in samplePartition[parti]])
             fitWithPrev.append(False)
@@ -229,7 +229,7 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
 #############################
 # Given a linkage matrix, decide if it represents a directly usable clustering
 # (ie a single no-fitWiths cluster + zero or more fitWith clusters, or two
-# clean no-fitWith clusters), or if we need to redo the clustering independantly
+# clean no-fitWith clusters), or if we need to redo the clustering independently
 # on the samples descending from each child of the root node.
 #
 # Args:
@@ -243,9 +243,9 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
 # (status, samplePartition) are the main beef:
 # - if clustering has a single main cluster -> status=0, the first list of samplePartition
 #   is the main cluster and then each consecutive list is fitWith all preceding ones;
-# - elsif the samples form 2 independant clusters without fitWiths -> status==1
+# - elsif the samples form 2 independent clusters without fitWiths -> status==1
 #   and len(samplePartition)==2;
-# - else we will need to redo the clustering independantly on the samples descending
+# - else we will need to redo the clustering independently on the samples descending
 #   from each child of the root node -> status==2 and len(samplePartition)==2.
 # (clust2samps, fitWith) are just for plotting the dendrogram for this specific
 # (transient) clustering, the clusterIDs are bogus
@@ -417,7 +417,7 @@ def interpretLinkage(linkageMatrix, minSize, sampleIDs):
         c1 = int(c1)
         c2 = int(c2)
         if clustSamples[c1] and clustSamples[c2]:
-            # we have 2 independant clusters
+            # we have 2 independent clusters
             retVal = (1, [clustSamples[c1], clustSamples[c2]])
         else:
             # more than 2 clusters, find all samples underneath c1 and c2
