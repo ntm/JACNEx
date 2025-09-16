@@ -147,7 +147,7 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
 # the root node.
 # Args are the same as buildClusters() except dendroID: identifies this call in
 # the series of recursive clusterize() calls, always starting with "root" and
-# then "-L" when going down on left side and "-R" on right.
+# then "-Lo" or "-Hi" when going down through the lowest / highest child.
 #
 # Return (clusters, fitWithPrev):
 # clusters = list of clusters, one cluster is a list of sampleIDs
