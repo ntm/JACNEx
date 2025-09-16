@@ -63,7 +63,7 @@ def calcPriors(likelihoods):
 
     for i in range(maxIter):
         priors = calcPosteriors(likelihoods, priors)
-        formattedPriors = " ".join(["%.2e" % x for x in priors])
+        formattedPriors = " ".join(["%.5f" % x for x in priors])
         debugString = "Priors at iteration " + str(i + 1) + ":\t" + formattedPriors
         noConvergeString += "\n" + debugString
         # Check for convergence
