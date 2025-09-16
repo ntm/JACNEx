@@ -59,6 +59,7 @@ def parseArgs(argv):
     outFile = ""
     # optional args with default values
     minSamps = 20
+    dendro = False
     # for WGS data: sigma value of the CN0 model, leave at 0 for exome data
     wgsCN0sigma = 0.0
 
@@ -72,18 +73,20 @@ Each gonosome cluster is (should be!) single-gender, this gender is predicted an
 printed in the GENDER column (and used in step s3).
 Results are printed to --out in TSV format: 5 columns
 [CLUSTER_ID, FIT_WITH, GENDER, VALID, SAMPLES]
-In addition, dendrograms are produced as pdf + matching text files alongside outFile.
+In addition, if --dendro: dendrograms are produced as pdf + matching text files
+alongside outFile.
 
 ARGUMENTS:
    --counts [str]: NPZ file with the fragment counts, produced by s1_countFrags.py
-   --out [str] : file where clusters will be saved, must not pre-exist, will be gzipped if it ends
-                 with '.gz', can have a path component but the subdir must exist
+   --out [str]: file where clusters will be saved, must not pre-exist, will be gzipped if it ends
+                with '.gz', can have a path component but the subdir must exist
    --minSamps [int]: minimum number of samples for a cluster to be declared valid, default : """ + str(minSamps) + """
    --wgsCN0sigma [float]: CN0 sigma parameter, use if input data is WGS rather than exome
-   -h , --help  : display this help and exit\n"""
+   --dendro: produce dendrograms and matching text files alongside the --out file
+   -h , --help: display this help and exit\n"""
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "counts=", "out=", "minSamps=", "wgsCN0sigma="])
+        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "dendro", "counts=", "out=", "minSamps=", "wgsCN0sigma="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -93,13 +96,15 @@ ARGUMENTS:
         if opt in ('-h', '--help'):
             sys.stderr.write(usage)
             sys.exit(0)
-        elif (opt in ("--counts")):
+        elif opt in ("--dendro"):
+            dendro = True
+        elif opt in ("--counts"):
             countsFile = value
         elif opt in ("--out"):
             outFile = value
-        elif (opt in ("--minSamps")):
+        elif opt in ("--minSamps"):
             minSamps = value
-        elif (opt in ("--wgsCN0sigma")):
+        elif opt in ("--wgsCN0sigma"):
             wgsCN0sigma = value
         else:
             raise Exception("unhandled option " + opt)
@@ -135,7 +140,7 @@ ARGUMENTS:
         raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
 
     # AOK, return everything that's needed
-    return(countsFile, outFile, minSamps, wgsCN0sigma)
+    return(countsFile, outFile, minSamps, wgsCN0sigma, dendro)
 
 
 ####################################################
@@ -145,7 +150,7 @@ ARGUMENTS:
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (countsFile, outFile, minSamps, wgsCN0sigma) = parseArgs(argv)
+    (countsFile, outFile, minSamps, wgsCN0sigma, dendro) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
@@ -182,13 +187,16 @@ def main(argv):
     # karyotype (predominantly on the X: in our hands XXY samples always cluster with XX
     # samples, not with XY ones)
 
-    # build root name for dendrograms, will just need to append autosomes-*.pdf or gonosomes-*.pdf
-    dendroFileRoot = outFile
-    # remove file extension (.tsv probably), and also .gz if present
-    if dendroFileRoot.endswith(".gz"):
+    dendroFileRoot = ""
+    if dendro:
+        # dendrograms requested -> build root name for dendrograms, will just need
+        # to append autosomes-*.pdf or gonosomes-*.pdf
+        dendroFileRoot = outFile
+        # remove file extension (.tsv probably), and also .gz if present
+        if dendroFileRoot.endswith(".gz"):
+            dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
         dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
-    dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
-    dendroFileRoot = dendroFileRoot + "_dendrogram"
+        dendroFileRoot = dendroFileRoot + "_dendrogram"
 
     # autosomes
     try:

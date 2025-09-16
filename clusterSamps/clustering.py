@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
 #   the cluster VALID
 # - dendroFileRoot (str): prefix of filename (including path) for saving dendrograms
 #   representing the resulting hierarchical clusterings, along with matching .txt files
-#   holding the sampleIDs in dendrogram order
+#   holding the sampleIDs in dendrogram order; if dendroFileRoot=="" dendrograms are
+#   not produced
 #
 # Returns (clust2samps, fitWith, clustIsValid): as defined in clustFile.py parseClustsFile(),
 # ie clusterIDs are formatted as TYPE_NUMBER where TYPE is 'A' or 'G', and:
@@ -181,21 +182,22 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
     # does linkage represent a clean clustering?
     (status, samplePartition, c2sFull, fwFull) = interpretLinkage(linkageMatrix, minSize, samples)
 
-    # prepare stuff and call plotDendrogram()
-    if chromType == 'A':
-        plotFile = dendroFileRoot + "_autosomes_" + dendroID + ".pdf"
-    else:
-        plotFile = dendroFileRoot + "_gonosomes_" + dendroID + ".pdf"
-    if os.path.isfile(plotFile):
-        logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
-    title = "chromType = " + chromType + " ,  hierarchical clustering ID: " + dendroID
-    if status == 0:
-        title += " , one main cluster (+ possibly fitWiths)"
-    elif status == 1:
-        title += " , two main clusters"
-    else:
-        title += " , more than two clusters, will recurse on each child"
-    figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, c2sFull, fwFull, title, plotFile)
+    if dendroFileRoot != "":
+        # prepare stuff and call plotDendrogram()
+        if chromType == 'A':
+            plotFile = dendroFileRoot + "_autosomes_" + dendroID + ".pdf"
+        else:
+            plotFile = dendroFileRoot + "_gonosomes_" + dendroID + ".pdf"
+        if os.path.isfile(plotFile):
+            logger.info("pre-existing dendrogram plotFile %s will be squashed", plotFile)
+        title = "chromType = " + chromType + " ,  hierarchical clustering ID: " + dendroID
+        if status == 0:
+            title += " , one main cluster (+ possibly fitWiths)"
+        elif status == 1:
+            title += " , two main clusters"
+        else:
+            title += " , more than two clusters, will recurse on each child"
+        figures.plotDendrograms.plotDendrogram(linkageMatrix, samples, c2sFull, fwFull, title, plotFile)
 
     # recursively clusterize each child of root if needed, and return
     clusters = []
