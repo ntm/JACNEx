@@ -20,6 +20,7 @@
 import concurrent.futures
 import logging
 import math
+import multiprocessing
 import numpy
 
 ####### JACNEx modules
@@ -87,7 +88,7 @@ def viterbiAllSamples(likelihoods, Ecodes, samples, exons, transMatrix, priors, 
             CNVs.extend(futureRes.result())
 
     ##################
-    with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
+    with concurrent.futures.ProcessPoolExecutor(jobs, mp_context=multiprocessing.get_context('fork')) as pool:
         for si in range(len(samples)):
             futureRes = pool.submit(viterbiOneSample, likelihoods[si, :, :], Ecodes, si,
                                     samples[si], exons, transMatrix, priors, dmax, minGQ)

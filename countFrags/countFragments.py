@@ -19,6 +19,7 @@
 
 import concurrent.futures
 import logging
+import multiprocessing
 import numba  # make python faster
 import numpy
 import os
@@ -170,7 +171,7 @@ def bam2counts(bamFile, nbOfExons, maxGap, tmpDir, samtools, jobs, sampleIndex):
 
         ############################################
         # parse alignments
-        with concurrent.futures.ProcessPoolExecutor(realJobs) as pool:
+        with concurrent.futures.ProcessPoolExecutor(realJobs, mp_context=multiprocessing.get_context('fork')) as pool:
             # next line to examine
             nextLine = samproc.stdout.readline()
 

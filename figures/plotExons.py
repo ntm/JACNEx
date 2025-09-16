@@ -23,6 +23,7 @@ import math
 import matplotlib
 import matplotlib.backends.backend_pdf
 import matplotlib.figure
+import multiprocessing
 import numpy
 import os
 
@@ -36,6 +37,19 @@ logging.getLogger('PIL').setLevel(logging.WARNING)
 
 # set up logger, using inherited config
 logger = logging.getLogger(__name__)
+
+
+# define global variable to store FPMs and exons:
+# - FPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
+# count for exon e in sample s (includes samples in FITWITH clusters)
+# - exons (list[str, int, int, str]): exon information
+#
+# These must be (module-level) global variables because python multiprocessing
+# doesn't seem to understand copy-on-write for function args... RAM usage of
+# plotCNVs() explodes when jobsis large if we pass exonFPMs to plotCNVsOneSample().
+# These vars need to be populated before any call to plotExon()
+FPMs = numpy.array([])
+exons = []
 
 
 ###############################################################################
@@ -52,10 +66,10 @@ logger = logging.getLogger(__name__)
 # - CNVs: list of CNVs for one cluster, as returned by viterbiAllSamples()
 # - sampleIDs: list of nbSOIs sampleIDs (==strings), must be in the same order
 #   as the corresponding samplesOfInterest columns in exonFPMs
-# - exons (list[str, int, int, str]): exon information
+# - myExons (list[str, int, int, str]): exon information
 # - padding (int): to adjust the coords in titles
 # - Ecodes (numpy.ndarray[ints]): exon filtering codes
-# - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
+# - exonFPMs: 2D-array of floats of size nbExons * nbSamples, exonFPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters)
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
 #   is in the cluster of interest (vs being in a FITWITH cluster)
@@ -69,7 +83,7 @@ logger = logging.getLogger(__name__)
 # - jobs [int]: number of samples to process in parallel
 #
 # Produces plotFile (pdf format), returns nothing.
-def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
+def plotCNVs(CNVs, sampleIDs, myExons, padding, Ecodes, exonFPMs, samplesOfInterest,
              isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir, jobs):
     # early return if no CNVs
     if len(CNVs) == 0:
@@ -81,6 +95,11 @@ def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInteres
     # append bogus final CNV (won't be processed, just needs impossible sampleIndex)
     CNVs.append([0, 0, 0, 0, -1])
 
+    # populate the module-global FPMs and exons
+    global FPMs, exons
+    FPMs = exonFPMs
+    exons = myExons
+
     ##################
     # Define nested callback for propagating exceptions from children if any
     def sampleDone(futureRes):
@@ -90,7 +109,7 @@ def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInteres
             raise(e)
     ##################
 
-    with concurrent.futures.ProcessPoolExecutor(jobs) as pool:
+    with concurrent.futures.ProcessPoolExecutor(jobs, mp_context=multiprocessing.get_context('fork')) as pool:
         sampleIndex = CNVs[0][4]
         CNVsOneSample = []
         for CNV in CNVs:
@@ -99,7 +118,7 @@ def plotCNVs(CNVs, sampleIDs, exons, padding, Ecodes, exonFPMs, samplesOfInteres
             else:
                 # changing samples
                 futureRes = pool.submit(plotCNVsOneSample, CNVsOneSample, sampleIDs[sampleIndex],
-                                        exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+                                        padding, Ecodes, samplesOfInterest, isHaploid,
                                         CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir)
                 futureRes.add_done_callback(sampleDone)
                 sampleIndex = CNV[4]
@@ -204,10 +223,10 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - exonsToPlot (dict): key==sampleID and value==list of exonIndexes to plot
 # - sampleIDs: list of nbSOIs sampleIDs (==strings), must be in the same order
 #   as the corresponding samplesOfInterest columns in exonFPMs
-# - exons (list[str, int, int, str]): exon information.
+# - myExons (list[str, int, int, str]): exon information.
 # - padding (int): to adjust the coords in titles
 # - Ecodes (numpy.ndarray[ints]): exon filtering codes.
-# - exonFPMs: 2D-array of floats of size nbExons * nbSamples, FPMs[e,s] is the FPM
+# - exonFPMs: 2D-array of floats of size nbExons * nbSamples, exonFPMs[e,s] is the FPM
 #   count for exon e in sample s (includes samples in FITWITH clusters, these are
 #   used for fitting the CN2)
 # - samplesOfInterest: 1D-array of bools of size nbSamples, value==True iff the sample
@@ -219,11 +238,16 @@ def preprocessRegionsToPlot(regionsToPlot, autosomeExons, gonosomeExons, samp2cl
 # - clusterID [str]
 # - plotDir [str]: Folder path to save the generated PDF.
 # Produces plotFile (pdf format), returns nothing.
-def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exonFPMs,
+def plotQCExons(exonsToPlot, sampleIDs, likelihoods, myExons, padding, Ecodes, exonFPMs,
                 samplesOfInterest, isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
     # return immediately if exonsToPlot is empty
     if not exonsToPlot:
         return
+
+    # populate the module-global FPMs and exons, for plotExons()
+    global FPMs, exons
+    FPMs = exonFPMs
+    exons = myExons
 
     # need the index of each sample in sampleIDs
     samp2index = {}
@@ -237,7 +261,7 @@ def plotQCExons(exonsToPlot, sampleIDs, likelihoods, exons, padding, Ecodes, exo
             raise Exception('plotQCExons sanity: plotFile ' + plotFile + ' already exists')
         matplotFile = matplotlib.backends.backend_pdf.PdfPages(plotFile)
         for thisExon in exonsToPlot[sampleID]:
-            plotExon(samp2index[sampleID], sampleID, thisExon, exons, padding, Ecodes, exonFPMs,
+            plotExon(samp2index[sampleID], sampleID, thisExon, padding, Ecodes,
                      samplesOfInterest, isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, False,
                      clusterID, matplotFile)
             # print to log: likelihoods of each CN model for each called sample+exon in exonsToPlot
@@ -288,11 +312,14 @@ def getLabels(isHaploid, CN0sigma, CN2Mu, CN2Sigma):
 # Args: most are the same as plotCNVs() args, special notes:
 # thisSampleIndex: index of sample among samplesOfInterest (ie not counting FITWITH samples)
 # CNV: for title, ignored if False (eg if plotting uncalled exons for QC)
-def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
+def plotExon(thisSampleIndex, sampleID, thisExon, padding, Ecodes, samplesOfInterest,
              isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile):
     CNcolors = ['red', 'orange', 'green', 'purple']
     ECodeSTR = {0: 'CALLED', 1: 'CALLED-CN1-RESTRICTED', -1: 'NOCALL:NOT-CAPTURED',
                 -2: 'NOCALL:FIT-CN2-FAILED', -3: 'NOCALL:CN2-LOW-SUPPORT', -4: 'NOCALL:CN0-TOO-CLOSE'}
+
+    # need read-access to module-global FPMs and exons
+    global FPMs, exons
 
     # don't plot NOT-CAPTURED exons, there's nothing interesting to plot
     # (also ignore FIT-CN2-FAILED exons but I've never seen one)
@@ -305,9 +332,9 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
 
     # number of bins for the histograms: try to use numSamples/2 (including FITWITH samples),
     # but at least 40 and at most 100
-    nbBins = int(min(max(40, exonFPMs.shape[1] / 2), 100))
+    nbBins = int(min(max(40, FPMs.shape[1] / 2), 100))
 
-    fpms = exonFPMs[thisExon, :]
+    fpms = FPMs[thisExon, :]
     # on x axis: plot up to 20% beyond max FPM
     fpmMax = max(fpms) * 1.2
     # 1000 evenly-spaced x coordinates, for smooth plots
@@ -414,13 +441,15 @@ def plotExon(thisSampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFP
 #####################
 # Given a CNV called in a sample, plot all exons from the CALLed exon preceding the CNV
 # to the CALLed exon following the CNV. Save to matplotFileDEL or matplotFileDUP.
-def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+def plotExonsOneCNV(CNV, sampleID, padding, Ecodes, samplesOfInterest, isHaploid,
                     CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP):
     # find CALLed exons surrounding the CNV
     (cn, startExi, endExi, qualScore, sampleIndex) = CNV
     matplotFile = matplotFileDEL
     if cn == 3:
         matplotFile = matplotFileDUP
+    # need read-access to module-global exons
+    global exons
     chrom = exons[startExi][0]
     exonBefore = startExi
     if (exonBefore > 0) and (exons[exonBefore - 1][0] == chrom):
@@ -434,7 +463,7 @@ def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfIn
         exonAfter += 1
 
     for thisExon in range(exonBefore, exonAfter + 1):
-        plotExon(sampleIndex, sampleID, thisExon, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
+        plotExon(sampleIndex, sampleID, thisExon, padding, Ecodes, samplesOfInterest,
                  isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, CNV, clusterID, matplotFile)
 
 
@@ -442,7 +471,7 @@ def plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfIn
 # Given all called CNVs for one sample, produce a PDF file in plotDir with plots for
 # the relevant exons.
 # CNVs must correspond to a single sample and be sorted by chrom-start.
-def plotCNVsOneSample(CNVs, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest,
+def plotCNVsOneSample(CNVs, sampleID, padding, Ecodes, samplesOfInterest,
                       isHaploid, CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, plotDir):
     clustType = 'A'
     if clusterID.startswith('G_'):
@@ -455,7 +484,7 @@ def plotCNVsOneSample(CNVs, sampleID, exons, padding, Ecodes, exonFPMs, samplesO
     for CNV in CNVs:
         if (CNV[4] != sampleIndex):
             raise Exception("plotCNVsOneSample sanity: called with different samples")
-        plotExonsOneCNV(CNV, sampleID, exons, padding, Ecodes, exonFPMs, samplesOfInterest, isHaploid,
+        plotExonsOneCNV(CNV, sampleID, padding, Ecodes, samplesOfInterest, isHaploid,
                         CN0sigma, CN2mus, CN2sigmas, fpmCn0, clusterID, matplotFileDEL, matplotFileDUP)
     matplotFileDEL.close()
     matplotFileDUP.close()

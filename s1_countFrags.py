@@ -29,6 +29,7 @@ import getopt
 import gzip
 import logging
 import math
+import multiprocessing
 import numpy
 import os
 import re
@@ -412,7 +413,7 @@ def main(argv):
 
         #####################################################
         # Process new BAMs, up to paraSamples in parallel
-        with concurrent.futures.ProcessPoolExecutor(paraSamples) as pool:
+        with concurrent.futures.ProcessPoolExecutor(paraSamples, mp_context=multiprocessing.get_context('fork')) as pool:
             for bamIndex in range(len(bamsToProcess)):
                 bam = bamsToProcess[bamIndex]
                 if countsFilled[bamIndex]:
