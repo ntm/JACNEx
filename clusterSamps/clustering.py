@@ -67,9 +67,10 @@ def buildClusters(FPMarray, chromType, samples, minSize, dendroFileRoot):
 
     (clusters, fitWithPrev) = clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, "root")
 
-    # we want clusters to be numbered increasingly by decreasing numbers of samples
+    # we want clusters to be numbered increasingly by decreasing numbers of samples,
+    # then by "increasing" first sample (so we are deterministic)
     clustIndexes = list(range(len(clusters)))
-    clustIndexes.sort(key=lambda ci: len(clusters[ci]), reverse=True)
+    clustIndexes.sort(key=lambda ci: (-len(clusters[ci]), clusters[ci][0]))
 
     # clustIndex2ID[i] is the ID of clusters[i]
     clustIndex2ID = [None] * len(clusters)
