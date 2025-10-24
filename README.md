@@ -1,4 +1,4 @@
-<h1 align="center"> JACNEx: Joint Analysis of Copy Number variations from Exomes</h1>
+<h1 align="center"> JACNEx: Joint Analysis of Copy Numbers from Exomes</h1>
 
 JACNEx calls germline Copy Number Variations (CNVs) from exome sequencing data.
 It is sensitive, specific, and very fast.
@@ -12,7 +12,7 @@ for gonosomes.
    - fit a distribution to model CN0 using intergenic pseudo-exons;
    - fit a distribution to model CN2 for each exon in each cluster;
    - identify non-interpretable exons in each cluster (extensive quality control);
-   - calculate the likelihood of each CN state for each interpretable exon in each cluster;
+   - calculate the likelihood of each CN state (CN0, CN1, CN2, CN3+) for each interpretable exon in each cluster;
    - fit prior probabilities and distance-dependant transition probabilities for each cluster;
    - combine all of this to construct a Continuous Hidden Markov Model for each cluster, and use it to call CNVs.
 
@@ -37,7 +37,7 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
 - The clusters from step 2 are also saved as interpretable TSV files in the Clusters/ subdir.
   These can be very useful for quality control, eg since gonosome clusters are always single-gender
   they allow to identify mis-labeled samples (wrong gender).
-- If called with --plotCNVs, JACNEx produces PDF files in the Plots_CNVs/ subdir for each sample,
+- If called with `--plotCNVs`, JACNEx produces PDF files in the Plots_CNVs/ subdir for each sample,
   containing plots for each exon in and immediately preceding/following each called CNV.
   Producing these plots slows JACNEx down somewhat, but we find them very useful for QC and validation,
   particularly for CNVs with lower GQ scores.
@@ -45,8 +45,8 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
 
 ## How to use JACNEx
 1. [Install JACNEx and its dependencies](#installing)
-2. [Prepare input files](#preparing_input)
-3. [Run JACNEx](#running_jacnex)
+2. [Prepare input files](#preparing-input)
+3. [Run JACNEx](#running-jacnex)
 
 
 <hr>
@@ -55,7 +55,7 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
 We try to keep dependencies to a minimum, but we still have a few: we rely on samtools,
 as well as a small number of python modules. Everything can be cleanly installed as follows.
 
-### JACNEx:
+#### JACNEx
 `git clone https://github.com/ntm/JACNEx.git`
 
 ### samtools
@@ -72,7 +72,7 @@ make all
 You then need to place samtools-$VER/samtools in your $PATH (e.g. create a symlink to it in
 /usr/local/bin/ if you are sudoer), or pass it to JACNEx.py with `--samtools=` .
 
-### Python
+#### Python
 JACNEx needs python version >= 3.7 (3.6 and earlier have a bug that breaks JACNEx).
 For example on ALMA Linux 9 we use python3.12, available in the standard repos since ALMA 9.4:
 ```
@@ -82,7 +82,7 @@ sudo dnf install python3.12-pip-wheel python3.12-setuptools-wheel python3.12-whe
 
 ### Python modules
 JACNEx requires the following python modules:<br>
-_numpy scipy numba ncls matplotlib scikit-learn KDEpy_<br>
+**numpy scipy numba ncls matplotlib scikit-learn KDEpy**<br>
 On some distributions/environments you may also need to (re-)install setuptools.
 We recommend the following commands, which cleanly install all the requirements in
 a python virtual environment (in ~/pyEnv_JACNEx/), using the system-wide versions if available:
@@ -95,10 +95,10 @@ pip install setuptools numpy scipy numba ncls matplotlib scikit-learn KDEpy
 ```
 On an ALMA9.4 system today (28/05/2024) with python3.12 installed as suggested above, this uses
 the system-wide:<br>
-**setuptools-68.2.2 numpy-1.24.4 scipy-1.11.1**
+setuptools-68.2.2 numpy-1.24.4 scipy-1.11.1
 
 and it installs in ~/pyEnv_JACNEx/ :<br>
-**numba-0.59.1 ncls-0.0.68 matplotlib-3.8.4 scikit_learn-1.4.2 KDEpy-1.1.9**
+numba-0.59.1 ncls-0.0.68 matplotlib-3.8.4 scikit_learn-1.4.2 KDEpy-1.1.9
 
 You then need to activate the venv before running JACNEx, e.g.:
 ```
