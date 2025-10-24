@@ -43,7 +43,7 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
   particularly for CNVs with lower GQ scores.
 
 
-## How to use JACNEx
+### How to use JACNEx
 1. [Install JACNEx and its dependencies](#installing)
 2. [Prepare input files](#preparing-input)
 3. [Run JACNEx](#running-jacnex)
@@ -51,14 +51,14 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
 
 <hr>
 
-## Installing
+### Installing
 We try to keep dependencies to a minimum, but we still have a few: we rely on samtools,
 as well as a small number of python modules. Everything can be cleanly installed as follows.
 
 #### JACNEx
 `git clone https://github.com/ntm/JACNEx.git`
 
-### samtools
+#### samtools
 JACNEx needs samtools (tested with v1.15.1 - v1.21), it can be installed with: <br>
 ```
 VER=1.21
@@ -80,7 +80,7 @@ sudo dnf install python3.12 python3.12-setuptools python3.12-numpy python3.12-sc
 sudo dnf install python3.12-pip-wheel python3.12-setuptools-wheel python3.12-wheel-wheel
 ```
 
-### Python modules
+#### Python modules
 JACNEx requires the following python modules:<br>
 **numpy scipy numba ncls matplotlib scikit-learn KDEpy**<br>
 On some distributions/environments you may also need to (re-)install setuptools.
@@ -108,7 +108,7 @@ $ source ~/pyEnv_JACNEx/bin/activate
 
 <hr>
 
-## Preparing input
+### Preparing input
 JACNEx needs a **BED file of exons**. Sequenced fragments that overlap each provided exon
 will be counted, and called CNVs will be comprised of one or more consecutive exons.
 JACNEx applies several quality controls throughout, including filtering of exons that
@@ -127,7 +127,7 @@ one filename per line, with `--bams-from=` .
 
 <hr>
 
-## Running JACNEx
+### Running JACNEx
 This is (almost) how we currently (24/10/2025) run JACNEx in production each time we sequence new exomes,
 on our regularly-growing collection of ~1300 human exomes with new samples being added 1-4 times per month.
 ```
@@ -136,12 +136,8 @@ TRANS=canonical_115
 python3 ~/Software/JACNEx/JACNEx.py --bams-from allBams_251022.list --bed ~/Transcripts_Data/${TRANS}.bed.gz --workDir JACNEx_${TRANS} --plotCNVs --tmp /mnt/RamDisk/ --jobs 60 2> JACNEx.${TRANS}.`date +%y%m%d`.log &
 ```
 
-To run JACNEx.py, use the following command syntax:
+You can see all possible command-line arguments with:
 ```
-BAMS="BAMs/sample1.bam,BAMs/sample2.bam"
-BED="Transcripts_Data/ensemblCanonicalTranscripts.bed.gz"
-WORKDIR="/path/to/workDir"
-
-python JACNEx.py --bams $BAMS --bed $BED --workDir $WORKDIR 2> jacnex.log
+source ~/pyEnv_JACNEx/bin/activate
+python3 ~/Software/JACNEx/JACNEx.py --help
 ```
-
