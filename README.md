@@ -20,7 +20,7 @@ for gonosomes.
 JACNEx is fast in general, but it was particularly engineered for speed in the incremental use case, i.e.:
 you have a (large) collection of exomes, and you regularly add some new exomes to this collection.
 The new exomes can help improve the CNV calls of some of the previous samples, but some tasks
-that were done previously should not need to be repeated (eg step 1, count fragments).
+that were done previously should not need to be repeated (eg step 1).
 JACNEx solves this correctly by saving key intermediate data each time you run it.
 Then when you run it again with some additional samples, it re-uses the previously saved data when
 possible, while redoing everything that could have different results.
