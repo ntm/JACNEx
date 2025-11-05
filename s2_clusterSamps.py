@@ -80,7 +80,8 @@ In addition:
     - if --ploidy -> ploidy estimations are produced in TSV format, containing the fraction
     of reads in each sample mapping to each chromosome, and the chromosomes (if any) where
     this fraction is significantly higher or lower than other samples in the same cluster.
-    Outliers are shown with the ratio between this fraction and the cluster's mean fraction.
+    Outliers (ie aneuploidies) are shown with the ratio between this fraction and the
+    cluster's mean fraction.
 
 ARGUMENTS:
    --counts [str]: NPZ file with the fragment counts, produced by s1_countFrags.py
