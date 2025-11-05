@@ -112,6 +112,7 @@ Step 1 optional arguments, defaults should be OK:
 Step 2 optional arguments, defaults should be OK:
    --minSamps [int]:  min number of samples for a cluster to be valid, default : """ + minSamps + """
    --dendro: produce dendrograms and matching text files alongside the clusters file
+   --ploidy: produce a file with ploidy estimations alongside the --out file
 
 Step 3 optional arguments, defaults should be OK:
    --minGQ [float]: minimum Genotype Quality score, default : """ + minGQ + """
@@ -121,7 +122,8 @@ Step 3 optional arguments, defaults should be OK:
         opts, args = getopt.gnu_getopt(argv[1:], 'vh', ["bams=", "bams-from=", "bed=", "workDir=", "jobs=",
                                                         "wgs", "wgsCN0sigma=",
                                                         "verbose", "help", "tmp=", "padding=", "maxGap=", "samtools=",
-                                                        "minSamps=", "dendro", "minGQ=", "plotCNVs", "regionsToPlot="])
+                                                        "minSamps=", "dendro", "ploidy", "minGQ=",
+                                                        "plotCNVs", "regionsToPlot="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -150,7 +152,7 @@ Step 3 optional arguments, defaults should be OK:
             step3Args.extend([opt, value])
         elif opt in ("--minSamps"):
             step2Args.extend([opt, value])
-        elif opt in ("--dendro"):
+        elif opt in ("--dendro", "--ploidy"):
             step2Args.extend([opt])
         elif opt in ("--minGQ", "--regionsToPlot"):
             step3Args.extend([opt, value])
@@ -287,7 +289,8 @@ def main(argv):
         except Exception:
             raise Exception(stepNames[0] + " BPDir " + BPDir + " doesn't exist and can't be mkdir'd")
 
-    # step2: clusterFiles (and dendrograms if --dendro) are saved (date-stamped) in clustersDir
+    # step2: clusterFiles (and dendrograms if --dendro, and ploidy results if --ploidy) are
+    # saved (date-stamped) in clustersDir
     clustersDir = os.path.join(workDir, 'Clusters/')
     if not os.path.isdir(clustersDir):
         try:
