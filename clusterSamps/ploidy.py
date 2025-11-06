@@ -169,6 +169,7 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
             # mean= only available starting at numpy 2.0.0
             sigma = numpy.std(sumsThisChrom)
             clust2chrom2stats[clust][chrom] = (mu, sigma)
+            logger.debug("cluster %s chrom %s: mu=%.0f sigma=%.0f", clust, chrom, mu, sigma)
 
     ########################################
     # print results to ploidyFile, calling aneuploidies as we go
