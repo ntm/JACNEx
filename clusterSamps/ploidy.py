@@ -44,13 +44,13 @@ logger = logging.getLogger(__name__)
 #
 # Args:
 # - *FPMs, *exons, samples: as returned by countFrags.countsFile.parseAndNormalizeCounts()
-# - clust2samps, fitWith, clustIsValid: as returned by clusterSamps.clustering.buildClusters()
+# - clust2samps, clustIsValid: as returned by clusterSamps.clustering.buildClusters()
 # - wgsCN0sigma: for WGS data, passed by s2_clusterSamps.py
 # - ploidyFile: filename (with path) where results will be saved, must not exist.
 #
 # Return nothing.
 def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
-                   samples, clust2samps, fitWith, clustIsValid, wgsCN0sigma, ploidyFile):
+                   samples, clust2samps, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
     ########################################
     # sanity checks
     nbExonsA = autosomeFPMs.shape[0]
@@ -192,6 +192,8 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
 
             if clustIsValid[clust]:
                 toPrint += "\t" + clust
+                if chromType == 1:
+                    toPrint += " (" + clust2gender[clust] + ")"
                 for chrom in chroms:
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]

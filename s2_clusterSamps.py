@@ -258,7 +258,7 @@ def main(argv):
     # estimate ploidy if requested
     if ploidyFile:
         clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons,
-                                           gonosomeExons, samples, clust2samps, fitWith, clustIsValid,
+                                           gonosomeExons, samples, clust2samps, clustIsValid, clust2gender,
                                            wgsCN0sigma, ploidyFile)
 
         thisTime = time.time()
