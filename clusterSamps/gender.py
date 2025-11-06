@@ -96,7 +96,7 @@ def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith, wgs
     # the sum of FPMs for all exons on chrY/W
     clust2FPM_Y = {}
 
-    # start by building lists of somOfFPMs, then calculate the median
+    # start by building lists of sumOfFPMs, then calculate the median
     for clust in clust2samps.keys():
         clust2FPM_X[clust] = []
         clust2FPM_Y[clust] = []
