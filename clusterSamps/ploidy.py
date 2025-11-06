@@ -161,7 +161,9 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
         for chrom in chroms:
             sumsThisChrom = sumOfFPMs[chrom][sampInClust]
             mu = numpy.mean(sumsThisChrom)
-            sigma = numpy.std(sumsThisChrom, mean=mu)
+            # sigma = numpy.std(sumsThisChrom, mean=mu)
+            # mean= only available starting at numpy 2.0.0
+            sigma = numpy.std(sumsThisChrom)
             clust2chrom2stats[clust][chrom] = (mu, sigma)
 
     ########################################
