@@ -19,7 +19,6 @@
 
 import logging
 import numpy
-import statistics
 
 ####### JACNEx modules
 import callCNVs.likelihoods
@@ -34,9 +33,9 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 
 #############################################################
-# Estimate the ploidy of each chromosome for each sample.
+# Estimate the ploidy of each chromosome for each sample in a VALID cluster.
 # Print results in TSV format to ploidyFile in TSV format, columns:
-# SAMPLE CLUSTER_AUTO CLUSTER_GONO ANEUPLOIDIES [one column per chromosome]
+# SAMPLE CLUSTER_A CLUSTER_G ANEUPLOIDIES [one column per chromosome]
 # For each sample, we store the fraction of reads that map to each chromosome;
 # for each cluster and each chrom, we calculate the mean and stddev of these fractions;
 # finally for each sample, any chrom where it's fraction is beyond mu +- 3*sigma
@@ -52,7 +51,8 @@ logger = logging.getLogger(__name__)
 # Return nothing.
 def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
                    samples, clust2samps, fitWith, clustIsValid, wgsCN0sigma, ploidyFile):
-    # sanity
+    ########################################
+    # sanity checks
     nbExonsA = autosomeFPMs.shape[0]
     nbExonsG = gonosomeFPMs.shape[0]
     nbSamples = len(samples)
@@ -66,6 +66,30 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
         logger.error("sanity check nbSamples, impossible!")
         raise Exception("estimatePloidy() sanity check failed")
 
+    ########################################
+    # Prep useful data structures for later
+    # samp2index: dict, key==sampleID, value==index in samples
+    samp2index = {}
+    for si in range(nbSamples):
+        samp2index[samples[si]] = si
+
+    # samp2clustA, samp2clustG: dicts, key==sampleID, value==autosome/gonosome clusterID
+    samp2clustA = {}
+    samp2clustG = {}
+    for clust in clust2samps.keys():
+        if clust.startswith('A_'):
+            samp2clust = samp2clustA
+        elif clust.startswith('G_'):
+            samp2clust = samp2clustG
+        else:
+            logger.error("clusterID %s doesn't start with A_ or G_, fix the code!")
+            raise('bad clusterID')
+        for samp in clust2samps[clust]:
+            if samp in samp2clust:
+                logger.error("sample %s is in more than one gonosome cluster, impossible!")
+                raise('sanity-check failed')
+            samp2clust[samp] = clust
+
     # FPM cut-off to characterize exons that aren't captured - use cutoff provided by fitCN0(),
     # ignoring first returned value (CN0sigma)
     maxFPMuncaptured = callCNVs.likelihoods.fitCN0(intergenicFPMs, wgsCN0sigma)[1]
@@ -73,19 +97,25 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
     sexChroms = countFrags.bed.sexChromosomes()
 
     ########################################
-    # we will fill sumOfFPMs for each chrom
+    # fill sumOfFPMs for each chrom
     # key == chrom, value == numpy 1D-array of size nbSamples (in the same order as samples)
     sumOfFPMs = {}
+    # along the way, collect the autosome/gonosome chrom names, same order as in *exons
+    chromsA = []
+    chromsG = []
     # code is the same for autosomes and gonosomes => we use chromType, autosome then gonosome
     for chromType in range(2):
         if chromType == 0:
             FPMs = autosomeFPMs
             exons = autosomeExons
+            chroms = chromsA
         else:
             FPMs = gonosomeFPMs
             exons = gonosomeExons
+            chroms = chromsG
 
         thisChrom = exons[0][0]
+        chroms.append(thisChrom)
         firstExonIndex = 0
         for ei in range(len(exons) + 1):
             if (ei == len(exons)) or (exons[ei][0] != thisChrom):
@@ -98,7 +128,8 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 # apply this strat to chrY...
                 if (chromType == 0) or (sexChroms[thisChrom] == 1):
                     twentyPercentQuantilePerExon = numpy.quantile(theseFPMs, 0.2, axis=1)
-                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :], axis=0)
+                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :],
+                                                     axis=0)
                 else:
                     # chrY|W: no 20%-quantile filter
                     sumOfFPMs[thisChrom] = numpy.sum(theseFPMs, axis=0)
@@ -106,19 +137,76 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 # ok move on to next chrom (except if we are finished)
                 if (ei != len(exons)):
                     thisChrom = exons[ei][0]
+                    chroms.append(thisChrom)
                     firstExonIndex = ei
 
     ########################################
-    # now process sumOfFPMs:
-    # for each cluster, for each chrom, calculate mean and stddev of its samples' FPMs
+    # process sumOfFPMs:
+    # for each VALID cluster, for each chrom, calculate mean and stddev of its samples' FPMs
+    # clust2chrom2stats: dict, key==clustID, value==dict with key==chrom, value==tuple (mean, stddev)
     clust2chrom2stats = {}
-    
-    # start by building a more useful mapping between clusters and sample indexes... TODO
-    
-    
+    for clust in clust2samps.keys():
+        # skip INVALID clusters
+        if not clustIsValid[clust]:
+            continue
+        if clust.startswith('A_'):
+            chroms = chromsA
+        else:
+            chroms = chromsG
+        clust2chrom2stats[clust] = {}
+        # sampInClust: numpy array of nbSamples bools, True iff sample is in clust
+        sampInClust = numpy.zeros(nbSamples, dtype=bool)
+        for samp in clust2samps[clust]:
+            sampInClust[samp2index[samp]] = True
+        for chrom in chroms:
+            sumsThisChrom = sumOfFPMs[chrom][sampInClust]
+            mu = numpy.mean(sumsThisChrom)
+            sigma = numpy.std(sumsThisChrom, mean=mu)
+            clust2chrom2stats[clust][chrom] = (mu, sigma)
+
+    ########################################
+    # print results to ploidyFile, calling aneuploidies as we go
+    try:
+        outFH = open(ploidyFile, "x")
+    except Exception as e:
+        logger.error("Cannot open ploidyFile %s: %s", ploidyFile, e)
+        raise Exception('cannot open ploidyFile')
+
+    toPrint = "SAMPLE\tCLUSTER_A\tCLUSTER_G\tANEUPLOIDIES\t" + "\t".join(chromsA + chromsG) + "\n"
+    outFH.write(toPrint)
+
+    for samp in samples:
+        toPrint = samp
+        aneupl = []
+        sumsThisSamp = ""
+        for chromType in range(2):
+            if chromType == 0:
+                clust = samp2clustA[samp]
+                chroms = chromsA
+            else:
+                clust = samp2clustG[samp]
+                FPMs = gonosomeFPMs
+                chroms = chromsG
+
+            if clustIsValid[clust]:
+                toPrint += "\t" + clust
+                for chrom in chroms:
+                    (mu, sigma) = clust2chrom2stats[clust][chrom]
+                    thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
+                    if (thisSumOfFPMs < mu - 3 * sigma) or (thisSumOfFPMs > mu + 3 * sigma):
+                        FPMratio = thisSumOfFPMs / mu
+                        aneupl.append(chrom + ":%.2f" % FPMratio)
+            else:
+                toPrint += "\t" + clust + " (INVALID)"
+
+            # we print the sums of FPMs per chrom, whether cluster is valid or not
+            for chrom in chroms:
+                sumsThisSamp += "\t%.0f" % sumOfFPMs[chrom][samp2index[samp]]
+        toPrint += "\t" + ','.join(aneupl)
+        toPrint += sumsThisSamp + "\n"
+        outFH.write(toPrint)
+
 
 ###############################################################################
 ############################ PRIVATE FUNCTIONS ################################
 ###############################################################################
-
-####################################################
