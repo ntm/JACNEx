@@ -269,6 +269,12 @@ def buildExonNCLs(exons):
     for chrom in starts.keys():
         ncl = ncls.NCLS(starts[chrom], ends[chrom], indexes[chrom])
         exonNCLs[chrom] = ncl
+        # also create entries for the chrom name with/without 'chr', in case the
+        # BED and the BAMs don't use the same convention
+        if chrom.startswith('chr'):
+            exonNCLs[chrom[3:]] = ncl
+        else:
+            exonNCLs['chr' + chrom] = ncl
     return(exonNCLs)
 
 
