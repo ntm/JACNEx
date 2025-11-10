@@ -201,7 +201,7 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                     toPrint += " (" + clust2gender[clust] + ")"
                 for chrom in chroms:
                     # don't call aneuploidies on Mito
-                    if (thisChrom == 'M') or (thisChrom == 'MT') or (thisChrom == 'chrM') or (thisChrom == 'chrMT'):
+                    if (chrom == 'M') or (chrom == 'MT') or (chrom == 'chrM') or (chrom == 'chrMT'):
                         continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
