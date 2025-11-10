@@ -38,9 +38,10 @@ logger = logging.getLogger(__name__)
 # SAMPLE CLUSTER_A CLUSTER_G ANEUPLOIDIES [one column per chromosome]
 # For each sample, we store the fraction of reads that map to each chromosome;
 # for each cluster and each chrom, we calculate the mean and stddev of these fractions;
-# finally for each sample, any chrom where it's fraction is beyond mu +- 3*sigma
-# for its cluster (autosome or gonosome, depending on the chrom) is shown in the
-# ANEUPLOIDIES column with the ratio: fraction/mu .
+# finally for each sample, we call an aneuploidy for any chrom where
+# |fraction-mu| / mu > aneuplMinShift AND
+# |fraction-mu| / sigma > aneuplMinZscore
+# Called aneuploidies are shown in the ANEUPLOIDIES column with fraction/mu and the Z-score.
 #
 # Args:
 # - *FPMs, *exons, samples: as returned by countFrags.countsFile.parseAndNormalizeCounts()
@@ -51,6 +52,9 @@ logger = logging.getLogger(__name__)
 # Return nothing.
 def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
                    samples, clust2samps, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
+    # hard-coded cutoffs for calling aneuploidies, see head-of-function comments
+    aneuplMinShift = 0.2
+    aneuplMinZscore = 3
     ########################################
     # sanity checks
     nbExonsA = autosomeFPMs.shape[0]
@@ -201,9 +205,12 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                         continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
-                    if (thisSumOfFPMs < mu - 3 * sigma) or (thisSumOfFPMs > mu + 3 * sigma):
+                    # |fraction-mu| / mu > aneuplMinShift AND
+                    # |fraction-mu| / sigma > aneuplMinZscore
+                    absDiff = abs(thisSumOfFPMs - mu)
+                    if (absDiff / mu > aneuplMinShift) and (absDiff / sigma > aneuplMinZscore):
                         FPMratio = thisSumOfFPMs / mu
-                        aneupl.append(chrom + ":%.2f" % FPMratio)
+                        aneupl.append(chrom + ":%.2f:%.1f" % (FPMratio, absDiff / sigma))
             else:
                 toPrint += "\t" + clust + " (INVALID)"
 
