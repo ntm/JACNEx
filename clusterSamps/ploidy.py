@@ -33,11 +33,13 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 
 #############################################################
-# Estimate the ploidy of each chromosome for each sample in a VALID cluster.
+# Estimate the ploidy of each chromosome for each sample (except if cluster is
+# smaller than minPloidySamps and has no fitWith => stddev is meaningless).
 # Print results in TSV format to ploidyFile in TSV format, columns:
 # SAMPLE CLUSTER_A CLUSTER_G ANEUPLOIDIES [one column per chromosome]
 # For each sample, we store the fraction of reads that map to each chromosome;
-# for each cluster and each chrom, we calculate the mean and stddev of these fractions;
+# for each cluster and each chrom, we calculate the mean and stddev of these
+#   fractions, including samples in fitWith clusters;
 # finally for each sample, we call an aneuploidy for any chrom where
 # |fraction-mu| / mu > aneuplMinShift AND
 # |fraction-mu| / sigma > aneuplMinZscore
@@ -51,10 +53,11 @@ logger = logging.getLogger(__name__)
 #
 # Return nothing.
 def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
-                   samples, clust2samps, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
+                   samples, clust2samps, fitWith, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
     # hard-coded cutoffs for calling aneuploidies, see head-of-function comments
     aneuplMinShift = 0.25
     aneuplMinZscore = 3
+    minPloidySamps = 3
     ########################################
     # sanity checks
     nbExonsA = autosomeFPMs.shape[0]
@@ -146,22 +149,24 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
 
     ########################################
     # process sumOfFPMs:
-    # for each VALID cluster, for each chrom, calculate mean and stddev of its samples' FPMs
+    # for each cluster (except very small and without fitWith), for each chrom, calculate mean
+    # and stddev of its samples' FPMs
     # clust2chrom2stats: dict, key==clustID, value==dict with key==chrom, value==tuple (mean, stddev)
     clust2chrom2stats = {}
     for clust in clust2samps.keys():
-        # skip INVALID clusters
-        if not clustIsValid[clust]:
+        # skip tiny clusters without a fitWith
+        if (len(clust2samps[clust]) < minPloidySamps) and not fitWith[clust]:
             continue
         if clust.startswith('A_'):
             chroms = chromsA
         else:
             chroms = chromsG
         clust2chrom2stats[clust] = {}
-        # sampInClust: numpy array of nbSamples bools, True iff sample is in clust
+        # sampInClust: numpy array of nbSamples bools, True iff sample is in clust or in a fitWith
         sampInClust = numpy.zeros(nbSamples, dtype=bool)
-        for samp in clust2samps[clust]:
-            sampInClust[samp2index[samp]] = True
+        for cfw in [clust] + fitWith[clust]:
+            for samp in clust2samps[cfw]:
+                sampInClust[samp2index[samp]] = True
         for chrom in chroms:
             sumsThisChrom = sumOfFPMs[chrom][sampInClust]
             mu = numpy.mean(sumsThisChrom)
@@ -179,7 +184,7 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
         logger.error("Cannot open ploidyFile %s: %s", ploidyFile, e)
         raise Exception('cannot open ploidyFile')
 
-    toPrint = "SAMPLE\tCLUSTER_A\tCLUSTER_G\tANEUPLOIDIES\t" + "\t".join(chromsA + chromsG) + "\n"
+    toPrint = "SAMPLE\tCLUSTER_A\tCLUSTER_G\tANEUPLOIDIES (chrom:FPM-ratio:Z-score)\t" + "\t".join(chromsA + chromsG) + "\n"
     outFH.write(toPrint)
 
     for samp in samples:
@@ -195,10 +200,15 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 FPMs = gonosomeFPMs
                 chroms = chromsG
 
-            if clustIsValid[clust]:
-                toPrint += "\t" + clust
-                if chromType == 1:
-                    toPrint += " (" + clust2gender[clust] + ")"
+            toPrint += "\t" + clust
+            if chromType == 1:
+                toPrint += " (" + clust2gender[clust] + ")"
+            if not clustIsValid[clust]:
+                toPrint += " (INVALID)"
+            # cannot call aneuploidies on tiny clusters without a fitWith
+            if (len(clust2samps[clust]) < minPloidySamps) and not fitWith[clust]:
+                toPrint += " (ANEUPL NOT CALLED)"
+            else:
                 for chrom in chroms:
                     # don't call aneuploidies on Mito
                     if (chrom == 'M') or (chrom == 'MT') or (chrom == 'chrM') or (chrom == 'chrMT'):
@@ -209,8 +219,6 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                     if (absDiff / mu > aneuplMinShift) and (absDiff / sigma > aneuplMinZscore):
                         FPMratio = thisSumOfFPMs / mu
                         aneupl.append(chrom + ":%.2f:%.1f" % (FPMratio, absDiff / sigma))
-            else:
-                toPrint += "\t" + clust + " (INVALID)"
 
             # we print the sums of FPMs per chrom, whether cluster is valid or not
             for chrom in chroms:

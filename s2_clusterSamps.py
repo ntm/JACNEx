@@ -268,8 +268,8 @@ def main(argv):
     # estimate ploidy if requested
     if ploidyFile:
         clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons,
-                                           gonosomeExons, samples, clust2samps, clustIsValid, clust2gender,
-                                           wgsCN0sigma, ploidyFile)
+                                           gonosomeExons, samples, clust2samps, fitWith, clustIsValid,
+                                           clust2gender, wgsCN0sigma, ploidyFile)
         thisTime = time.time()
         logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
         logger.info("it is recommended to check the ANEUPLOIDIES column in %s", ploidyFile)
