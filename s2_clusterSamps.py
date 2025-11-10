@@ -272,7 +272,7 @@ def main(argv):
                                            clust2gender, wgsCN0sigma, ploidyFile)
         thisTime = time.time()
         logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
-        logger.info("it is recommended to check the ANEUPLOIDIES column in %s", ploidyFile)
+        logger.info("check ANEUPLOIDIES in %s", ploidyFile)
         startTime = thisTime
 
     logger.debug("ALL DONE")
