@@ -115,33 +115,29 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
             chroms = chromsG
 
         thisChrom = exons[0][0]
-        # ignore Mito
-        if (thisChrom != 'M') and (thisChrom != 'MT') and (thisChrom != 'chrM') and (thisChrom != 'chrMT'):
-            chroms.append(thisChrom)
+        chroms.append(thisChrom)
         firstExonIndex = 0
         for ei in range(len(exons) + 1):
             if (ei == len(exons)) or (exons[ei][0] != thisChrom):
                 # we are finished or changing chrom -> process thisChrom
-                if (thisChrom != 'M') and (thisChrom != 'MT') and (thisChrom != 'chrM') and (thisChrom != 'chrMT'):
-                    # FPMs for thisChrom, using a slice so we get a view
-                    theseFPMs = FPMs[firstExonIndex:ei, :]
-                    # "accepted" exons on thisChrom: exons that are "captured" (FPM > maxFPMuncaptured) in
-                    # "most" samples (at least 80%, hard-coded as 0.2 below).
-                    # This provides a cleaner signal when samples use different capture kits, but don't
-                    # apply this strat to chrY...
-                    if (chromType == 0) or (sexChroms[thisChrom] == 1):
-                        twentyPercentQuantilePerExon = numpy.quantile(theseFPMs, 0.2, axis=1)
-                        sumOfFPMs[thisChrom] = numpy.sum(theseFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :],
-                                                         axis=0)
-                    else:
-                        # chrY|W: no 20%-quantile filter
-                        sumOfFPMs[thisChrom] = numpy.sum(theseFPMs, axis=0)
+                # FPMs for thisChrom, using a slice so we get a view
+                theseFPMs = FPMs[firstExonIndex:ei, :]
+                # "accepted" exons on thisChrom: exons that are "captured" (FPM > maxFPMuncaptured) in
+                # "most" samples (at least 80%, hard-coded as 0.2 below).
+                # This provides a cleaner signal when samples use different capture kits, but don't
+                # apply this strat to chrY...
+                if (chromType == 0) or (sexChroms[thisChrom] == 1):
+                    twentyPercentQuantilePerExon = numpy.quantile(theseFPMs, 0.2, axis=1)
+                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :],
+                                                     axis=0)
+                else:
+                    # chrY|W: no 20%-quantile filter
+                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs, axis=0)
 
                 # ok move on to next chrom (except if we are finished)
                 if (ei != len(exons)):
                     thisChrom = exons[ei][0]
-                    if (thisChrom != 'M') and (thisChrom != 'MT') and (thisChrom != 'chrM') and (thisChrom != 'chrMT'):
-                        chroms.append(thisChrom)
+                    chroms.append(thisChrom)
                     firstExonIndex = ei
 
     ########################################
@@ -200,6 +196,9 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 if chromType == 1:
                     toPrint += " (" + clust2gender[clust] + ")"
                 for chrom in chroms:
+                    # don't call aneuploidies on Mito
+                    if (thisChrom == 'M') or (thisChrom == 'MT') or (thisChrom == 'chrM') or (thisChrom == 'chrMT'):
+                        continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
                     if (thisSumOfFPMs < mu - 3 * sigma) or (thisSumOfFPMs > mu + 3 * sigma):
