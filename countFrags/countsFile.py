@@ -89,12 +89,14 @@ def extractCountsFromPrev(genomicWindows, SOIs, prevCountsFile):
 # Parse the counts data in countsFile, normalize (see NOTE) as fragments per
 # million (FPM), and return the results separately for exons and intergenic
 # pseudo-exons.
-# NOTE: for exons on sex chromosomes and intergenic pseudo-exons, FPM normalization
-# is performed on all exonic and intergenic counts combined; but for autosome exons
-# it is performed taking into account ONLY these autosome exon counts. This
-# strategy avoids skewing autosome FPMs in men vs women (due to more reads on chrX
-# in women), while preserving ~2x more FPMs in women vs men for chrX exons and
-# avoiding huge and meaningless intergenic FPMs (if normalized alone).
+# NOTE: for autosome exons FPM normalization is performed taking into account
+# ONLY these autosome exon counts; for exons on sex chromosomes it is performed
+# taking into account autosome AND gonosome counts; and for intergenic pseudo-exons
+# it is performed taking into account ALL exonic and intergenic counts.
+# This strategy avoids skewing autosome FPMs in men vs women (due to more reads on
+# chrX in women), preserves ~2x more FPMs in women vs men for chrX exons, and
+# results in intergenic FPMs correctly representing the amount of "intergenic noise"
+# in each sample.
 #
 # Arg:
 #   - a countsFile produced by printCountsFile (npz format)
@@ -138,16 +140,21 @@ def parseAndNormalizeCounts(countsFile):
     intergenicFPMs = counts[windowType == 2, :].astype(numpy.float64, order='F', casting='safe')
 
     sumOfCountsAuto = autosomeFPMs.sum(dtype=numpy.float64, axis=0)
-    sumOfCountsTotal = counts.sum(dtype=numpy.float64, axis=0)
+    sumOfCountsAutoGono = gonosomeFPMs.sum(dtype=numpy.float64, axis=0)
+    sumOfCountsAutoGono += sumOfCountsAuto
+    sumOfCountsTotal = intergenicFPMs.sum(dtype=numpy.float64, axis=0)
+    sumOfCountsTotal += sumOfCountsAutoGono
     # if any sample has sumOfCounts*==0, replace by 1 to avoid dividing by zero
     sumOfCountsAuto[sumOfCountsAuto == 0] = 1.0
+    sumOfCountsAutoGono[sumOfCountsAutoGono == 0] = 1.0
     sumOfCountsTotal[sumOfCountsTotal == 0] = 1.0
     # scale to get FPMs
     sumOfCountsAuto /= 1e6
+    sumOfCountsAutoGono /= 1e6
     sumOfCountsTotal /= 1e6
 
     autosomeFPMs /= sumOfCountsAuto
-    gonosomeFPMs /= sumOfCountsTotal
+    gonosomeFPMs /= sumOfCountsAutoGono
     intergenicFPMs /= sumOfCountsTotal
 
     return(samples, autosomeExons, gonosomeExons, intergenics, autosomeFPMs, gonosomeFPMs, intergenicFPMs)
