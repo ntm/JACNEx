@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
                    samples, clust2samps, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
     # hard-coded cutoffs for calling aneuploidies, see head-of-function comments
-    aneuplMinShift = 0.2
+    aneuplMinShift = 0.25
     aneuplMinZscore = 3
     ########################################
     # sanity checks
@@ -205,8 +205,6 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                         continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
-                    # |fraction-mu| / mu > aneuplMinShift AND
-                    # |fraction-mu| / sigma > aneuplMinZscore
                     absDiff = abs(thisSumOfFPMs - mu)
                     if (absDiff / mu > aneuplMinShift) and (absDiff / sigma > aneuplMinZscore):
                         FPMratio = thisSumOfFPMs / mu
