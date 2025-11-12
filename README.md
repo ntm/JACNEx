@@ -44,14 +44,14 @@ It is therefore extremely fast in this (frequent) incremental N+1 use case, with
 
 
 ### How to use JACNEx
-1. [Install JACNEx and its dependencies](#installing)
+1. [Install JACNEx and its dependencies](#installation)
 2. [Prepare input files](#preparing-input)
 3. [Run JACNEx](#running-jacnex)
 
 
 <hr>
 
-### Installing
+### INSTALLATION
 We try to keep dependencies to a minimum, but we still have a few: we rely on samtools,
 as well as a small number of python modules. Everything can be cleanly installed as follows.
 
@@ -108,7 +108,7 @@ $ source ~/pyEnv_JACNEx/bin/activate
 
 <hr>
 
-### Preparing input
+### PREPARING INPUT
 JACNEx needs a **BED file of exons**.<br>
 Exons will be padded (see --padding) and overlapping exons will be merged.
 Sequenced fragments that overlap each provided (padded and merged) exon
@@ -131,7 +131,7 @@ one filename per line, with `--bams-from=` .
 
 <hr>
 
-### Running JACNEx
+### RUNNING JACNEx
 This is (almost) how we currently (24/10/2025) run JACNEx in production each time we sequence new exomes,
 on our regularly-growing collection of ~1300 human exomes with new samples being added 1-4 times per month.
 ```
