@@ -6,14 +6,14 @@ It is sensitive, specific, and very fast.
 JACNEx performs the following steps:
 1. **Count fragments**: counts the number of sequenced fragments from each BAM file that overlap each exon.
 2. **Cluster samples**: identify clusters of "similar" samples (typically captured with the same kit, usually
-in the same center, and other factors can come into play). Clusters are built independantly for autosomes and
+in the same center, and other factors can come into play). Clusters are built independently for autosomes and
 for gonosomes.
 3. **Call CNVs**:
    - fit a distribution to model CN0 using intergenic pseudo-exons;
    - fit a distribution to model CN2 for each exon in each cluster;
    - identify non-interpretable exons in each cluster (extensive quality control);
    - calculate the likelihood of each CN state (CN0, CN1, CN2, CN3+) for each interpretable exon in each cluster;
-   - fit prior probabilities and distance-dependant transition probabilities for each cluster;
+   - fit prior probabilities and distance-dependent transition probabilities for each cluster;
    - combine all of this to construct a Continuous Hidden Markov Model for each cluster, and use it to call CNVs.
 
 
@@ -109,18 +109,22 @@ $ source ~/pyEnv_JACNEx/bin/activate
 <hr>
 
 ### Preparing input
-JACNEx needs a **BED file of exons**. Sequenced fragments that overlap each provided exon
+JACNEx needs a **BED file of exons**.<br>
+Exons will be padded (see --padding) and overlapping exons will be merged.
+Sequenced fragments that overlap each provided (padded and merged) exon
 will be counted, and called CNVs will be comprised of one or more consecutive exons.
 JACNEx applies several quality controls throughout, including filtering of exons that
 are not captured or not correctly covered by unambiguous alignments. Therefore the BED
-can be extensive, and doesn't have to be restricted to exons that are targeted by your
-capture kit.
-For example, for Human exomes we currently use exons of the Ensembl canonical transcripts,
+can be generic and extensive, it doesn't have to be restricted to exons that are targeted
+by your capture kit.
+For example, for Human exomes produced with 14 different capture kits
+we currently use the Ensembl canonical transcripts exons,
 specifically the canonical_$VERS.bed.gz file produced as
 [documented here](https://github.com/ntm/grexome-TIMC-Secondary/tree/master/Transcripts_Data).
 
-JACNEx also needs **BAM files**, one file for each sample. Each BAM filename (stripped of .bam)
-will be used to identify the corresponding sample, i.e. each file should be named `<sampleID>.bam` .
+JACNEx also needs **BAM files**, one file for each sample.<br>
+Each BAM filename (stripped of .bam) will be used to identify the corresponding sample,
+i.e. each file should be named `<sampleID>.bam` .
 The filenames can be provided on the command line with `--bams=` , or they can be listed in a text file,
 one filename per line, with `--bams-from=` .
 
