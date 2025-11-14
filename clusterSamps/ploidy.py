@@ -49,8 +49,8 @@ logger = logging.getLogger(__name__)
 # - ploidyFile: filename (with path) where results will be saved, must not exist.
 #
 # Return nothing.
-def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, gonosomeExons,
-                   samples, clust2samps, fitWith, clustIsValid, clust2gender, wgsCN0sigma, ploidyFile):
+def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
+                   samples, clust2samps, fitWith, clustIsValid, clust2gender, ploidyFile):
     # hard-coded cutoffs for calling aneuploidies, see head-of-function comments
     aneuplMinShift = 0.25
     aneuplMinZscore = 3
