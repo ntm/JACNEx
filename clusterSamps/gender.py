@@ -76,11 +76,9 @@ def assignGender(FPMs, exons, samples, clust2samps, fitWith):
             samp2clust[samp] = clust
 
     ########################################
-    # clust2FPM_X: dict, key==clusterID, value == median (over all samples in the cluster) of
-    # the sum of FPMs for "accepted" exons on chrX/Z
+    # clust2FPM_*: dict, key==clusterID, value == median (over all samples in the cluster) of
+    # the sum of FPMs on this chrom
     clust2FPM_X = {}
-    # clust2FPM_Y: dict, key==clusterID, value == median (over all samples in the cluster) of
-    # the sum of FPMs for all exons on chrY/W
     clust2FPM_Y = {}
 
     # start by building lists of sumOfFPMs, then calculate the median
@@ -118,7 +116,7 @@ def assignGender(FPMs, exons, samples, clust2samps, fitWith):
             break
         else:
             prevFPM = fpm
-    # if all samples have "high" FPMs on chrY: all-male? or largeGapSize is too small?
+    # if all clusters have "high" FPMs on chrY: all-male? or largeGapSize is too small?
     if largeGapSize < medianFPMsY[0]:
         logger.warning("all samples are predicted to be Male, is this correct? If not, CNV calls on the")
         logger.warning("sex chromosomes will be lower quality. Please let us know so we can fix it.")
