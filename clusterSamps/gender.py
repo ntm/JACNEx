@@ -23,7 +23,6 @@ import statistics
 
 ####### JACNEx modules
 import countFrags.bed
-import callCNVs.likelihoods
 
 # set up logger, using inherited config
 logger = logging.getLogger(__name__)
@@ -38,14 +37,13 @@ logger = logging.getLogger(__name__)
 #
 # Args:
 # - FPMs: numpy.ndarray of FPMs for exons on gonosomes, size = nbExons x nbSamples
-# - intergenicFPMs: same for intergenic pseudo-exons
 #
 # Return clust2gender: key == clusterID (gonosomes only), value=='M' or 'F'
 #
 # If we're unable to assign a gender to each sample, log a warning and return an
 # all-female assignment vector. This can happen legitimately if the cohort is single-gender,
 # but it could also result from noisy / heterogeneous data, or flaws in our methodology.
-def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith, wgsCN0sigma):
+def assignGender(FPMs, exons, samples, clust2samps, fitWith):
     # sanity
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
@@ -63,6 +61,10 @@ def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith, wgs
     for ei in range(nbExons):
         if sexChroms[exons[ei][0]] == 2:
             exonOnY[ei] = True
+    XZexonsFPMs = FPMs[numpy.logical_not(exonOnY), :]
+    sumOfFPMsXZ = numpy.sum(XZexonsFPMs, axis=0)
+    YWexonsFPMs = FPMs[exonOnY, :]
+    sumOfFPMsYW = numpy.sum(YWexonsFPMs, axis=0)
 
     # samp2clust: dict, key==sampleID, value==clusterID
     samp2clust = {}
@@ -72,21 +74,6 @@ def assignGender(FPMs, intergenicFPMs, exons, samples, clust2samps, fitWith, wgs
                 logger.error("sample %s is in more than one gonosome cluster, impossible!")
                 raise('sanity-check failed')
             samp2clust[samp] = clust
-
-    ########################################
-    # FPM cut-off to characterize exons that aren't captured - use cutoff provided by fitCN0(),
-    # ignoring first returned value (CN0sigma)
-    maxFPMuncaptured = callCNVs.likelihoods.fitCN0(intergenicFPMs, wgsCN0sigma)[1]
-    # "accepted" exons on chrXZ: exons that are "captured" (FPM > maxFPMuncaptured) in
-    # "most" samples (at least 80%, hard-coded as 0.2 below).
-    # This provides a cleaner signal when samples use different capture kits.
-    XZexonsFPMs = FPMs[numpy.logical_not(exonOnY), :]
-    twentyPercentQuantilePerExon = numpy.quantile(XZexonsFPMs, 0.2, axis=1)
-    sumOfFPMsXZ = numpy.sum(XZexonsFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :], axis=0)
-
-    # on chrY use all exons
-    YWexonsFPMs = FPMs[exonOnY, :]
-    sumOfFPMsYW = numpy.sum(YWexonsFPMs, axis=0)
 
     ########################################
     # clust2FPM_X: dict, key==clusterID, value == median (over all samples in the cluster) of

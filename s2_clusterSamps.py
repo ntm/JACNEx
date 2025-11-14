@@ -249,7 +249,7 @@ def main(argv):
 
     # predict genders
     clust2gender = clusterSamps.gender.assignGender(
-        gonosomeFPMs, intergenicFPMs, gonosomeExons, samples, clust2sampsGono, fitWithGono, wgsCN0sigma)
+        gonosomeFPMs, gonosomeExons, samples, clust2sampsGono, fitWithGono)
 
     thisTime = time.time()
     logger.info("done predicting genders, in %.2fs", thisTime - startTime)
