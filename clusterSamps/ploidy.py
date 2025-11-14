@@ -20,9 +20,6 @@
 import logging
 import numpy
 
-####### JACNEx modules
-import callCNVs.likelihoods
-import countFrags.bed
 
 # set up logger, using inherited config
 logger = logging.getLogger(__name__)
@@ -97,12 +94,6 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 raise('sanity-check failed')
             samp2clust[samp] = clust
 
-    # FPM cut-off to characterize exons that aren't captured - use cutoff provided by fitCN0(),
-    # ignoring first returned value (CN0sigma)
-    maxFPMuncaptured = callCNVs.likelihoods.fitCN0(intergenicFPMs, wgsCN0sigma)[1]
-    # sex chromosomes and their type
-    sexChroms = countFrags.bed.sexChromosomes()
-
     ########################################
     # fill sumOfFPMs for each chrom
     # key == chrom, value == numpy 1D-array of size nbSamples (in the same order as samples)
@@ -129,17 +120,7 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 # we are finished or changing chrom -> process thisChrom
                 # FPMs for thisChrom, using a slice so we get a view
                 theseFPMs = FPMs[firstExonIndex:ei, :]
-                # "accepted" exons on thisChrom: exons that are "captured" (FPM > maxFPMuncaptured) in
-                # "most" samples (at least 80%, hard-coded as 0.2 below).
-                # This provides a cleaner signal when samples use different capture kits, but don't
-                # apply this strat to chrY...
-                if (chromType == 0) or (sexChroms[thisChrom] == 1):
-                    twentyPercentQuantilePerExon = numpy.quantile(theseFPMs, 0.2, axis=1)
-                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs[twentyPercentQuantilePerExon > maxFPMuncaptured, :],
-                                                     axis=0)
-                else:
-                    # chrY|W: no 20%-quantile filter
-                    sumOfFPMs[thisChrom] = numpy.sum(theseFPMs, axis=0)
+                sumOfFPMs[thisChrom] = numpy.sum(theseFPMs, axis=0)
 
                 # ok move on to next chrom (except if we are finished)
                 if (ei != len(exons)):
@@ -197,7 +178,6 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, intergenicFPMs, autosomeExons, go
                 chroms = chromsA
             else:
                 clust = samp2clustG[samp]
-                FPMs = gonosomeFPMs
                 chroms = chromsG
 
             toPrint += "\t" + clust
