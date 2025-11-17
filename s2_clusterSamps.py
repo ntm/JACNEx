@@ -242,25 +242,24 @@ def main(argv):
     logger.info("done predicting genders, in %.2fs", thisTime - startTime)
     startTime = thisTime
 
+    # estimate ploidy
+    clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
+                                       samples, clust2samps, fitWith, clustIsValid,
+                                       samp2gender, clust2gender, ploidyFile)
+    thisTime = time.time()
+    logger.info("done calling aneuploidies, in %.2fs", thisTime - startTime)
+    logger.info("check GENDERs and ANEUPLOIDIES in %s", ploidyFile)
+    logger.info("gender discrepancies with your metadata usually reveal metadata errors")
+
+    startTime = thisTime
+
     # print clustering results
     try:
         clusterSamps.clustFile.printClustsFile(clust2samps, fitWith, clust2gender, clustIsValid, outFile)
     except Exception as e:
         logger.error("printing clusters failed : %s", str(e))
         raise Exception("printClustsFile failed")
-    logger.info("please examine %s", outFile)
-    logger.info("predicted genders appear in the GENDER column (X0 and XXY are predicted as Female)")
-    logger.info("discrepancies with your metadata usually reveal metadata errors, otherwise please tell us!")
-
-    # estimate ploidy
-    clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
-                                       samples, clust2samps, fitWith, clustIsValid,
-                                       samp2gender, clust2gender, ploidyFile)
-    thisTime = time.time()
-    logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
-    logger.info("check ANEUPLOIDIES in %s", ploidyFile)
-    startTime = thisTime
-
+    logger.info("done printing clusters, please examine %s", outFile)
     logger.debug("ALL DONE")
 
 
