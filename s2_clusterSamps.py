@@ -157,7 +157,7 @@ ARGUMENTS:
         if ploidyFile.endswith(".gz"):
             ploidyFile = os.path.splitext(ploidyFile)[0]
         ploidyFile = os.path.splitext(ploidyFile)[0]
-        ploidyFile = ploidyFile + "_ploidy.tsv"
+        ploidyFile = ploidyFile + "_gender_ploidy.tsv"
         if os.path.exists(ploidyFile):
             raise Exception("ploidyFile " + ploidyFile + " already exists")
 
