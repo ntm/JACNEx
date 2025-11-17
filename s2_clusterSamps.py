@@ -61,7 +61,6 @@ def parseArgs(argv):
     # optional args with default values
     minSamps = 20
     dendro = False
-    ploidy = False
     # for WGS data: sigma value of the CN0 model, leave at 0 for exome data
     wgsCN0sigma = 0.0
 
@@ -71,17 +70,14 @@ Given a NPZ file with fragment counts, build clusters of "similar" samples that
 will be used as controls for one another.
 Clusters are built independently for exons on autosomes ('A') and  on gonosomes ('G').
 The accepted sex chromosomes are X, Y, Z, and W.
-Each gonosome cluster is (should be!) single-gender, this gender is predicted and
-printed in the GENDER column (and used in step s3).
+Genders are predicted for each sample, and the ploidy of each chromosome in
+each sample is called. Genders and any called aneuploidies are produced in TSV
+format alongside the --out file.
+Each gonosome cluster should be single-gender (if it isn't you will get warnings in the log),
+this gender is printed in the GENDER column.
 Results are printed to --out in TSV format: 5 columns
 [CLUSTER_ID, FIT_WITH, GENDER, VALID, SAMPLES]
-In addition:
-    - if --dendro -> dendrograms are produced as pdf + matching text files;
-    - if --ploidy -> ploidy estimations are produced in TSV format, containing the fraction
-    of reads in each sample mapping to each chromosome, and the chromosomes (if any) where
-    this fraction is significantly higher or lower than other samples in the same cluster.
-    Outliers (ie aneuploidies) are shown with the ratio between this fraction and the
-    cluster's mean fraction.
+In addition, if --dendro -> dendrograms are produced as pdf + matching text files.
 
 ARGUMENTS:
    --counts [str]: NPZ file with the fragment counts, produced by s1_countFrags.py
@@ -90,11 +86,10 @@ ARGUMENTS:
    --minSamps [int]: minimum number of samples for a cluster to be declared valid, default : """ + str(minSamps) + """
    --wgsCN0sigma [float]: CN0 sigma parameter, use if input data is WGS rather than exome
    --dendro: produce dendrograms and matching text files alongside the --out file
-   --ploidy: produce a file with ploidy estimations alongside the --out file
    -h , --help: display this help and exit\n"""
 
     try:
-        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "dendro", "ploidy", "counts=",
+        opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "dendro", "counts=",
                                                        "out=", "minSamps=", "wgsCN0sigma="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
@@ -107,8 +102,6 @@ ARGUMENTS:
             sys.exit(0)
         elif opt in ("--dendro"):
             dendro = True
-        elif opt in ("--ploidy"):
-            ploidy = True
         elif opt in ("--counts"):
             countsFile = value
         elif opt in ("--out"):
@@ -150,16 +143,14 @@ ARGUMENTS:
     except Exception:
         raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
 
-    ploidyFile = ""
-    if ploidy:
-        ploidyFile = outFile
-        # remove file extension (.tsv probably), and also .gz if present
-        if ploidyFile.endswith(".gz"):
-            ploidyFile = os.path.splitext(ploidyFile)[0]
+    ploidyFile = outFile
+    # remove file extension (.tsv probably), and also .gz if present
+    if ploidyFile.endswith(".gz"):
         ploidyFile = os.path.splitext(ploidyFile)[0]
-        ploidyFile = ploidyFile + "_gender_ploidy.tsv"
-        if os.path.exists(ploidyFile):
-            raise Exception("ploidyFile " + ploidyFile + " already exists")
+    ploidyFile = os.path.splitext(ploidyFile)[0]
+    ploidyFile = ploidyFile + "_gender_ploidy.tsv"
+    if os.path.exists(ploidyFile):
+        raise Exception("ploidyFile " + ploidyFile + " already exists")
 
     # AOK, return everything that's needed
     return(countsFile, outFile, minSamps, wgsCN0sigma, dendro, ploidyFile)
@@ -204,11 +195,6 @@ def main(argv):
     # Clustering:
     # build clusters of samples with "similar" count profiles, independently for exons
     # located on autosomes and on sex chromosomes (==gonosomes).
-    # As a side benefit this also allows to identify same-gender samples, since samples
-    # that cluster together for the gonosomal exons always have the same gonosomal
-    # karyotype (predominantly on the X: in our hands XXY samples always cluster with XX
-    # samples, not with XY ones)
-
     dendroFileRoot = ""
     if dendro:
         # dendrograms requested -> build root name for dendrograms, will just need
@@ -266,15 +252,14 @@ def main(argv):
     logger.info("predicted genders appear in the GENDER column (X0 and XXY are predicted as Female)")
     logger.info("discrepancies with your metadata usually reveal metadata errors, otherwise please tell us!")
 
-    # estimate ploidy if requested
-    if ploidyFile:
-        clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
-                                           samples, clust2samps, fitWith, clustIsValid,
-                                           samp2gender, clust2gender, ploidyFile)
-        thisTime = time.time()
-        logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
-        logger.info("check ANEUPLOIDIES in %s", ploidyFile)
-        startTime = thisTime
+    # estimate ploidy
+    clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
+                                       samples, clust2samps, fitWith, clustIsValid,
+                                       samp2gender, clust2gender, ploidyFile)
+    thisTime = time.time()
+    logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
+    logger.info("check ANEUPLOIDIES in %s", ploidyFile)
+    startTime = thisTime
 
     logger.debug("ALL DONE")
 
