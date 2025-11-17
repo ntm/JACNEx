@@ -75,7 +75,7 @@ def predictGenders(FPMs, exons, samples):
     largeGapSize = 150
     fpmThreshold = 0
     prevFPM = 0
-    sumOfFPMsYWsorted = numpy.sorted(sumOfFPMsYW)
+    sumOfFPMsYWsorted = numpy.sort(sumOfFPMsYW)
     for fpm in sumOfFPMsYWsorted:
         if fpm - prevFPM > largeGapSize:
             fpmThreshold = (fpm + prevFPM) / 2
