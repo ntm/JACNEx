@@ -19,7 +19,6 @@
 
 import logging
 import numpy
-import statistics
 
 ####### JACNEx modules
 import countFrags.bed
@@ -33,26 +32,22 @@ logger = logging.getLogger(__name__)
 ###############################################################################
 
 ###############################################################################
-# Assign a gender for each sample (ie column of exonsFPM)
+# Predict the gender of each sample (ie column of exonsFPM) based on chrX and chrY FPMs.
 #
 # Args:
 # - FPMs: numpy.ndarray of FPMs for exons on gonosomes, size = nbExons x nbSamples
 #
-# Return clust2gender: key == clusterID (gonosomes only), value=='M' or 'F'
-#
-# If we're unable to assign a gender to each sample, log a warning and return an
-# all-female assignment vector. This can happen legitimately if the cohort is single-gender,
-# but it could also result from noisy / heterogeneous data, or flaws in our methodology.
-def assignGender(FPMs, exons, samples, clust2samps, fitWith):
+# Return samp2gender: key == sampleID, value=='M' or 'F' or 'X0' or 'XXY'
+def predictGenders(FPMs, exons, samples):
     # sanity
     nbExons = FPMs.shape[0]
     nbSamples = FPMs.shape[1]
     if nbExons != len(exons):
         logger.error("sanity check nbExons, impossible!")
-        raise Exception("assignGender() sanity check failed")
+        raise Exception("predictGenders() sanity check failed")
     if nbSamples != len(samples):
         logger.error("sanity check nbSamples, impossible!")
-        raise Exception("assignGender() sanity check failed")
+        raise Exception("predictGenders() sanity check failed")
 
     # exonOnY: numpy array of nbExons bools, exonOnY[ei]==False if exons[ei] is
     # on chrX/Z, True if on chrY/W
@@ -61,43 +56,14 @@ def assignGender(FPMs, exons, samples, clust2samps, fitWith):
     for ei in range(nbExons):
         if sexChroms[exons[ei][0]] == 2:
             exonOnY[ei] = True
-    XZexonsFPMs = FPMs[numpy.logical_not(exonOnY), :]
-    sumOfFPMsXZ = numpy.sum(XZexonsFPMs, axis=0)
     YWexonsFPMs = FPMs[exonOnY, :]
     sumOfFPMsYW = numpy.sum(YWexonsFPMs, axis=0)
-
-    # samp2clust: dict, key==sampleID, value==clusterID
-    samp2clust = {}
-    for clust in clust2samps.keys():
-        for samp in clust2samps[clust]:
-            if samp in samp2clust:
-                logger.error("sample %s is in more than one gonosome cluster, impossible!")
-                raise('sanity-check failed')
-            samp2clust[samp] = clust
+    XZexonsFPMs = FPMs[numpy.logical_not(exonOnY), :]
+    sumOfFPMsXZ = numpy.sum(XZexonsFPMs, axis=0)
 
     ########################################
-    # clust2FPM_*: dict, key==clusterID, value == median (over all samples in the cluster) of
-    # the sum of FPMs on this chrom
-    clust2FPM_X = {}
-    clust2FPM_Y = {}
-
-    # start by building lists of sumOfFPMs, then calculate the median
-    for clust in clust2samps.keys():
-        clust2FPM_X[clust] = []
-        clust2FPM_Y[clust] = []
-    for si in range(nbSamples):
-        clust = samp2clust[samples[si]]
-        clust2FPM_X[clust].append(sumOfFPMsXZ[si])
-        clust2FPM_Y[clust].append(sumOfFPMsYW[si])
-    for clust in clust2samps.keys():
-        clust2FPM_X[clust] = statistics.median(clust2FPM_X[clust])
-        clust2FPM_Y[clust] = statistics.median(clust2FPM_Y[clust])
-
-    ########################################
-    # Predict the gender of each cluster (we assume that clusters are single-gender,
-    # i.e. clustering didn't totally fail).
-    # clust2gender: key == clusterID, value=='M' or 'F'
-    clust2gender = {}
+    # samp2gender: key == sampleID, value=='M' or 'F' or 'X0' or 'XXY'
+    samp2gender = {}
     # Unsupervised clustering (e.g. K-means) feels good but it won't work when
     # genders are strongly imbalanced...
     # Instead we start with an empirical method on chrY, and then make sure
@@ -105,46 +71,143 @@ def assignGender(FPMs, exons, samples, clust2samps, fitWith):
 
     # find the first "large" (> largeGapSize) gap in FPMs on chrY.
     # largeGapSize is set empirically, it works for all the data we tested but
-    # if assignGender() fails we may need a different value (or method!)
-    largeGapSize = 200
+    # if predictGenders() fails we may need a different value (or method!)
+    largeGapSize = 150
     fpmThreshold = 0
-    medianFPMsY = sorted(clust2FPM_Y.values())
     prevFPM = 0
-    for fpm in medianFPMsY:
+    sumOfFPMsYWsorted = numpy.sorted(sumOfFPMsYW)
+    for fpm in sumOfFPMsYWsorted:
         if fpm - prevFPM > largeGapSize:
             fpmThreshold = (fpm + prevFPM) / 2
             break
         else:
             prevFPM = fpm
     # if all clusters have "high" FPMs on chrY: all-male? or largeGapSize is too small?
-    if largeGapSize < medianFPMsY[0]:
-        logger.warning("all samples are predicted to be Male, is this correct? If not, CNV calls on the")
-        logger.warning("sex chromosomes will be lower quality. Please let us know so we can fix it.")
+    if largeGapSize < sumOfFPMsYWsorted[0]:
+        logger.warning("all samples are predicted to be Male based on chrY, is this plausible?")
+        logger.warning("If not, please let us know so we can fix it.")
     elif fpmThreshold == 0:
-        # didn't find a large gap: all-female (or algo didn't work properly)
-        logger.warning("all samples are predicted to be Female, is this correct? If not, CNV calls on the")
-        logger.warning("sex chromosomes will be lower quality. Please let us know so we can fix it.")
-        fpmThreshold = medianFPMsY[-1] + 1
+        # didn't find a large gap: all-female (or very low coverage of chrY, or...)
+        logger.warning("all samples are predicted to be Female based on chrY, is this plausible?")
+        logger.warning("If not, please let us know so we can fix it.")
+        fpmThreshold = sumOfFPMsYWsorted[-1] + 1
 
-    for clust in clust2FPM_Y.keys():
-        if clust2FPM_Y[clust] <= fpmThreshold:
+    # assign genders based on chrY
+    for si in range(nbSamples):
+        if sumOfFPMsYW[si] <= fpmThreshold:
+            samp2gender[samples[si]] = 'F'
+        else:
+            samp2gender[samples[si]] = 'M'
+
+    if (largeGapSize < sumOfFPMsYWsorted[0]) or (fpmThreshold > sumOfFPMsYWsorted[-1]):
+        # all samples are same gender, cannot do anything more
+        return(samp2gender)
+
+    # we have both M and F samples according to chrY, make sure chrX agrees:
+    # indexes of 'F' samples, sorted by increasing FPMs on chrX
+    femalesByFPMonX = []
+    # and indexes of 'M' samples sorted by decreasing FPMs on chrX
+    malesByFPMonX = []
+    for si in range(nbSamples):
+        if samp2gender[samples[si]] == 'F':
+            femalesByFPMonX.append(si)
+        else:
+            malesByFPMonX.append(si)
+    femalesByFPMonX.sort(key=lambda si: sumOfFPMsXZ[si])
+    malesByFPMonX.sort(key=lambda si: sumOfFPMsXZ[si], reverse=True)
+
+    smallestFi = 0
+    largestMi = 0
+    # numbers of called X0 and XXY
+    countX0 = 0
+    countXXY = 0
+    while(sumOfFPMsXZ[femalesByFPMonX[smallestFi]] < sumOfFPMsXZ[malesByFPMonX[largestMi]]):
+        # count number of M whose FPMonX is greater than smallestFi
+        nbMabove = 1
+        for mi in range(largestMi + 1, len(malesByFPMonX)):
+            if femalesByFPMonX[smallestFi] < malesByFPMonX[mi]:
+                nbMabove += 1
+            else:
+                break
+        # and number of F whose FPMonX is smaller than largestMi
+        nbFbelow = 1
+        for fi in range(smallestFi + 1, len(femalesByFPMonX)):
+            if femalesByFPMonX[fi] < malesByFPMonX[largestMi]:
+                nbFbelow += 1
+            else:
+                break
+        # if counts are equal, the bad sample is the one from the most frequent gender
+        if nbMabove == nbFbelow:
+            if len(femalesByFPMonX) < len(malesByFPMonX):
+                nbFbelow += 1
+            else:
+                nbMabove += 1
+
+        # the sample that disagrees with the most other-gender samples is bad
+        if (nbMabove > nbFbelow):
+            # 'F' sample seems to be X0 (Turner)
+            samp2gender[samples[femalesByFPMonX[smallestFi]]] = 'X0'
+            countX0 += 1
+            smallestFi += 1
+            if smallestFi >= len(femalesByFPMonX):
+                # no more 'F' samples, we are done
+                break
+        else:
+            # 'M' sample seems to be XXY (Klinefelter)
+            samp2gender[samples[malesByFPMonX[largestMi]]] = 'XXY'
+            countXXY += 1
+            largestMi += 1
+            if largestMi >= len(malesByFPMonX):
+                # no more 'M' samples, we are done
+                break
+
+    if (countX0 + countXXY > 0):
+        logMess = "sex chromosomal anomalies detected: "
+        if (countX0 > 0):
+            logMess += str(countX0) + " X0 samples "
+        if (countX0 * countXXY > 0):
+            logMess += "and "
+        if (countXXY > 0):
+            logMess += str(countXXY) + " XXY samples "
+        logMess += "were called, examine the ploidy file"
+        logger.warning(logMess)
+
+    return(samp2gender)
+
+
+###############################################################################
+# Assign a gender for each cluster, using a majority vote.
+# Log any disagreements between samples and their cluster.
+# X0 and XXY samples are ignored for the vote, but if all samples in a cluster
+# are X0 or XXY the cluster is assigned 'F'.
+#
+# Args:
+# - samp2gender as returned by assignGender
+#
+# Return clust2gender: key == clusterID (gonosomes only), value=='M' or 'F'
+def clusterGender(samp2gender, clust2samps, fitWith):
+    # clust2gender: key == clusterID, value=='M' or 'F'
+    clust2gender = {}
+
+    for clust in clust2samps.keys():
+        countF = 0
+        countM = 0
+        for samp in clust2samps[clust]:
+            if samp2gender[samp] == 'F':
+                countF += 1
+            elif samp2gender[samp] == 'M':
+                countM += 1
+            # else X0 or XXY, NOOP
+        if (countF >= countM):
+            # this includes the case where all samples are X0 or XXY
             clust2gender[clust] = 'F'
         else:
             clust2gender[clust] = 'M'
+        if (countF * countM > 0):
+            logger.warning("cluster %s contains both M and F samples, this shouldn't happen! Please let us know",
+                           clust)
 
-    # now make sure chrX agrees
-    for clustM in clust2gender.keys():
-        if clust2gender[clustM] != 'M':
-            continue
-        for clustF in clust2gender.keys():
-            if clust2gender[clustM] != 'F':
-                continue
-            if clust2FPM_X[clustM] >= clust2FPM_X[clustF]:
-                logger.warning("clusters %s and %s are predicted as Male and Female based on chrY, but chrX doesn't agree!",
-                               clustM, clustF)
-                logger.warning("CNV calls on the sex chromosomes will be lower quality. Please let us know so we can fix it.")
-
-    # also make sure clusters got the same genders as their FITWITHs
+    # make sure clusters got the same genders as their FITWITHs
     for clust in clust2gender.keys():
         gender = clust2gender[clust]
         for fw in fitWith[clust]:

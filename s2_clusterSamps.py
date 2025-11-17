@@ -247,9 +247,10 @@ def main(argv):
     logger.info("done clustering samples for gonosomes, in %.2fs", thisTime - startTime)
     startTime = thisTime
 
-    # predict genders
-    clust2gender = clusterSamps.gender.assignGender(
-        gonosomeFPMs, gonosomeExons, samples, clust2sampsGono, fitWithGono)
+    # predict each sample's gender
+    samp2gender = clusterSamps.gender.predictGenders(gonosomeFPMs, gonosomeExons, samples)
+    # assign a gender to each cluster
+    clust2gender = clusterSamps.gender.clusterGender(samp2gender, clust2sampsGono, fitWithGono)
 
     thisTime = time.time()
     logger.info("done predicting genders, in %.2fs", thisTime - startTime)
@@ -262,7 +263,7 @@ def main(argv):
         logger.error("printing clusters failed : %s", str(e))
         raise Exception("printClustsFile failed")
     logger.info("please examine %s", outFile)
-    logger.info("predicted genders appear in the GENDER column (XXY are predicted as Female)")
+    logger.info("predicted genders appear in the GENDER column (X0 and XXY are predicted as Female)")
     logger.info("discrepancies with your metadata usually reveal metadata errors, otherwise please tell us!")
 
     # estimate ploidy if requested
