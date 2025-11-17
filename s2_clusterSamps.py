@@ -270,7 +270,7 @@ def main(argv):
     if ploidyFile:
         clusterSamps.ploidy.estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons,
                                            samples, clust2samps, fitWith, clustIsValid,
-                                           clust2gender, ploidyFile)
+                                           samp2gender, clust2gender, ploidyFile)
         thisTime = time.time()
         logger.info("done estimating ploidy, in %.2fs", thisTime - startTime)
         logger.info("check ANEUPLOIDIES in %s", ploidyFile)
