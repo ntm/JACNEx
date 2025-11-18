@@ -136,8 +136,14 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
 
     ########################################
     # process sumOfFPMs:
-    # for each cluster (>= minPloidySamps), for each chrom, calculate mean
-    # and stddev of its samples' FPMs (including fitWith samples if any)
+    # for each cluster (>= minPloidySamps), for each chrom, analyze its
+    # samples' FPMs (including fitWith samples if any) in two passes:
+    # pass 1: calculate stddev, make sure at least 75% of samples are
+    #     within 3 stddevs of the median (else give up on this chrom),
+    #     and calculate the new stddev restricted to these samples;
+    # pass 2: restrict samples to those within 3 stddevs of the median
+    #     and calculate the new (mu,stddev) restricted to these samples,
+    #     saving this in clust2chrom2stats.
     # clust2chrom2stats: dict, key==clustID, value==dict with key==chrom, value==tuple (mean, stddev)
     clust2chrom2stats = {}
     for clust in clust2samps.keys():
@@ -158,11 +164,18 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
         clust2chrom2stats[clust] = {}
         for chrom in chroms:
             sumsThisChrom = sumOfFPMs[chrom][sampInClust]
-            mu = numpy.mean(sumsThisChrom)
-            # sigma = numpy.std(sumsThisChrom, mean=mu)
-            # mean= only available starting at numpy 2.0.0
+            median = numpy.median(sumsThisChrom)
             sigma = numpy.std(sumsThisChrom)
-            clust2chrom2stats[clust][chrom] = (mu, sigma)
+            sumsRestricted = sumsThisChrom[numpy.abs(sumsThisChrom - median) < 3 * sigma]
+            if sumsRestricted.size < sampsInClust * 0.75:
+                logger.warning("cluster %s chromosome %s: cannot call ploidy, FPMs too far from monomodal",
+                               clust, chrom)
+                continue
+            mu = numpy.mean(sumsRestricted)
+            # sigma = numpy.std(sumsRestricted, mean=mu)
+            # mean= only available starting at numpy 2.0.0
+            sigmaRestricted = numpy.std(sumsRestricted)
+            clust2chrom2stats[clust][chrom] = (mu, sigmaRestricted)
             logger.debug("cluster %s chrom %s: mu=%.0f sigma=%.0f", clust, chrom, mu, sigma)
 
     ########################################
@@ -205,6 +218,9 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
                 for chrom in chroms:
                     # don't call aneuploidies on Mito
                     if (chrom == 'M') or (chrom == 'MT') or (chrom == 'chrM') or (chrom == 'chrMT'):
+                        continue
+                    # also can't call if FPMs were not monomodal at all for this chrom
+                    if (chrom not in clust2chrom2stats[clust]):
                         continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
                     thisSumOfFPMs = sumOfFPMs[chrom][samp2index[samp]]
