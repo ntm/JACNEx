@@ -163,6 +163,9 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
             continue
         clust2chrom2stats[clust] = {}
         for chrom in chroms:
+            # don't call aneuploidies on Mito
+            if (chrom == 'M') or (chrom == 'MT') or (chrom == 'chrM') or (chrom == 'chrMT'):
+                continue
             sumsThisChrom = sumOfFPMs[chrom][sampInClust]
             median = numpy.median(sumsThisChrom)
             sigma = numpy.std(sumsThisChrom)
@@ -216,10 +219,7 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
                 toPrint += " (ANEUPL NOT CALLED)"
             else:
                 for chrom in chroms:
-                    # don't call aneuploidies on Mito
-                    if (chrom == 'M') or (chrom == 'MT') or (chrom == 'chrM') or (chrom == 'chrMT'):
-                        continue
-                    # also can't call if FPMs were not monomodal at all for this chrom
+                    # can't call if FPMs were not monomodal at all for this chrom
                     if (chrom not in clust2chrom2stats[clust]):
                         continue
                     (mu, sigma) = clust2chrom2stats[clust][chrom]
