@@ -189,10 +189,14 @@ def estimatePloidy(autosomeFPMs, gonosomeFPMs, autosomeExons, gonosomeExons, sam
                 chroms = chromsG
 
             toPrint += "\t" + clust
-            if fitWith[clust]:
-                toPrint += " fitWith " + ",".join(fitWith[clust])
             if chromType == 1:
                 toPrint += " (" + clust2gender[clust] + ")"
+            if fitWith[clust]:
+                toPrint += " FITWITH"
+                for fw in fitWith[clust]:
+                    toPrint += " " + fitWith[clust]
+                    if chromType == 1:
+                        toPrint += " (" + clust2gender[fw] + ")"
             if not clustIsValid[clust]:
                 toPrint += " (INVALID)"
             if clust not in clust2chrom2stats:
