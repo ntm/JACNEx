@@ -364,7 +364,7 @@ def main(argv):
         # complement step2Args and check them
 
         # new clustersFile to create
-        clustersFile = os.path.join(clustersDir, 'clusters_' + dateStamp + '.tsv')
+        clustersFile = os.path.join(clustersDir, 'clusters_' + dateStamp + '.csv')
         if os.path.isfile(clustersFile):
             raise Exception(stepNames[2] + " clustersFile " + clustersFile + " already exists")
         step2Args.extend(["--out", clustersFile])

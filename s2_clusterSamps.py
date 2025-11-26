@@ -144,11 +144,11 @@ ARGUMENTS:
         raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
 
     ploidyFile = outFile
-    # remove file extension (.tsv probably), and also .gz if present
+    # remove file extension (.csv probably), and also .gz if present
     if ploidyFile.endswith(".gz"):
         ploidyFile = os.path.splitext(ploidyFile)[0]
     ploidyFile = os.path.splitext(ploidyFile)[0]
-    ploidyFile = ploidyFile + "_gender_ploidy.tsv"
+    ploidyFile = ploidyFile + "_gender_ploidy.csv"
     if os.path.exists(ploidyFile):
         raise Exception("ploidyFile " + ploidyFile + " already exists")
 
@@ -200,7 +200,7 @@ def main(argv):
         # dendrograms requested -> build root name for dendrograms, will just need
         # to append autosomes-*.pdf or gonosomes-*.pdf
         dendroFileRoot = outFile
-        # remove file extension (.tsv probably), and also .gz if present
+        # remove file extension (.csv probably), and also .gz if present
         if dendroFileRoot.endswith(".gz"):
             dendroFileRoot = os.path.splitext(dendroFileRoot)[0]
         dendroFileRoot = os.path.splitext(dendroFileRoot)[0]

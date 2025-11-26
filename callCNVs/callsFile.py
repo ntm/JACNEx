@@ -343,7 +343,7 @@ def parseBreakpoints(BPDir, samples, minSupportingFrags):
 
     for sample in samples:
         # NOTE: keep filenames in sync with bpFile in s1_countFrags.py
-        bpFile = os.path.join(BPDir, sample + '.breakPoints.tsv.gz')
+        bpFile = os.path.join(BPDir, sample + '.breakPoints.csv.gz')
         if (not os.path.isfile(bpFile)):
             logger.warning("cannot find breakPoints file %s for sample %s, this is unexpected... investigate?",
                            bpFile, sample)

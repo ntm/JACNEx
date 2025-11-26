@@ -86,7 +86,7 @@ Given a BED of exons and one or more BAM files:
 Results (sample names, genomic windows, counts) are saved to --out in NPZ format.
 The "sample names" are the BAM filenames stripped of their path and .bam extension, they
 are sorted alphanumerically.
-In addition, any support for putative breakpoints is printed to sample-specific TSV.gz files
+In addition, any support for putative breakpoints is printed to sample-specific CSV.gz files
 created in BPDir.
 If a pre-existing counts file produced by this program with the same BED is provided (with --counts),
 counts for common BAMs are copied from this file and counting is only performed for the new BAMs.
@@ -386,8 +386,8 @@ def main(argv):
         # bam2counts() returns a 3-element tuple (sampleIndex, sampleCounts, breakPoints).
         # If something went wrong, log and populate failedBams;
         # otherwise fill column at index sampleIndex in countsArray with counts stored in sampleCounts,
-        # and print info about putative CNVs with alignment-supported breakpoints as TSV.gz
-        # to BPDir/<sample>.breakPoints.tsv.gz
+        # and print info about putative CNVs with alignment-supported breakpoints as CSV.gz
+        # to BPDir/<sample>.breakPoints.csv.gz
         def mergeCounts(futureBam2countsRes):
             e = futureBam2countsRes.exception()
             if e is not None:
@@ -402,7 +402,7 @@ def main(argv):
                 if (len(bam2countsRes[2]) > 0):
                     try:
                         # NOTE: keep filename in sync with bpFile in callsFile.py:parseBreakpoints()
-                        bpFile = os.path.join(BPDir, samples[si] + '.breakPoints.tsv.gz')
+                        bpFile = os.path.join(BPDir, samples[si] + '.breakPoints.csv.gz')
                         BPFH = gzip.open(bpFile, "xt", compresslevel=6)
                         BPFH.write(bam2countsRes[2])
                         BPFH.close()
