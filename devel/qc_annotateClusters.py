@@ -1,5 +1,5 @@
 ############################################################################################
-# Copyright (C) Nicolas Thierry-Mieg and Amandine Septier, 2021-2025
+# Copyright (C) Nicolas Thierry-Mieg and Amandine Septier, 2021-2026
 #
 # This file is part of JACNEx, written by Nicolas Thierry-Mieg and Amandine Septier
 # (CNRS, France)  {Nicolas.Thierry-Mieg,Amandine.Septier}@univ-grenoble-alpes.fr
@@ -259,9 +259,8 @@ def parseMetadata(metadataFile):
         elif qc == "suspected contamination":
             pass  # == noop
         elif qc != '':
-            logger.error("parsing QC column in metadata file %s, found unexpected/unimplemented value %s",
-                         metadataFile, qc)
-            raise Exception("unimplemented QC value in metadata file")
+            logger.warning("parsing QC column in metadata file %s, skipping unexpected/unimplemented value %s",
+                           metadataFile, qc)
 
         samp2sex[sample] = sex
 
