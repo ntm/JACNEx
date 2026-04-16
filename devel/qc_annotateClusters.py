@@ -245,29 +245,29 @@ def parseMetadata(metadataFile):
     samp2batch = {}
 
     for line in metadataFH:
-        splitLine = line.rstrip().split("\t")
-        sample = splitLine[headers.index("sampleID")]
-        if (sample == "") or (sample == '0'):
-            continue
+        try:
+            splitLine = line.rstrip().split("\t")
+            sample = splitLine[headers.index("sampleID")]
+            if (sample == "") or (sample == '0'):
+                continue
 
-        sex = splitLine[headers.index("Sex")]
-        qc = splitLine[headers.index("Quality control")]
-        if qc == "suspected XX":
-            sex = 'F'
-        elif (qc == "suspected XXY") or (qc == "suspected XXY or contamination"):
-            sex = 'XXY'
-        elif qc == "suspected contamination":
-            pass  # == noop
-        elif qc != '':
-            logger.warning("parsing QC column in metadata file %s, skipping unexpected/unimplemented value %s",
-                           metadataFile, qc)
+            sex = splitLine[headers.index("Sex")]
+            qc = splitLine[headers.index("Quality control")]
+            if qc == "suspected XX":
+                sex = 'F'
+            elif (qc == "suspected XXY") or (qc == "suspected XXY or contamination"):
+                sex = 'XXY'
+            # else QC info shouldn't be relevant for gender, ignore
 
-        samp2sex[sample] = sex
+            samp2sex[sample] = sex
 
-        batch = splitLine[headers.index("Center")] + "_" + splitLine[headers.index("capture")]
-        if batch.startswith('Genoscope') or batch.startswith('Novogene'):
-            batch += "_" + splitLine[headers.index("Date")]
-        samp2batch[sample] = batch
+            batch = splitLine[headers.index("Center")] + "_" + splitLine[headers.index("capture")]
+            if batch.startswith('Genoscope') or batch.startswith('Novogene'):
+                batch += "_" + splitLine[headers.index("Date")]
+            samp2batch[sample] = batch
+        except Exception as e:
+            logger.error("error (%s) parsing metadata line:\n%s", e, line)
+            raise
 
     return(samp2sex, samp2batch)
 
