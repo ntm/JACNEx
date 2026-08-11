@@ -212,10 +212,8 @@ def viterbiOneSample(likelihoods, Ecodes, sampleIndex, sampleID, exons, transMat
                 logger.warning("for sample %s, all best paths to exon %s:%i-%i underflowed to zero proba.",
                                sampleID, thisEx[0], thisEx[1], thisEx[2])
                 logger.warning("This should be very rare, if not please report it.")
-                # we'll try to build CNVs from whichever state was most likely in the last exon
-                appendBogusCN2Exon(calledExons, path, bestPathProbas, CN2FromCN2Probas)
-                # make sure we will backtrack-and-reset (should already be all-2s, but whatever)
-                bestPrevState[:] = 2
+                # skip this exon
+                continue
 
             # if all states at currentExon have the same predecessor state and that state is CN2:
             # backtrack from [previous exon, CN2] and reset
