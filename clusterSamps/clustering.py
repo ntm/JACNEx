@@ -166,8 +166,7 @@ def clusterize(FPMarray, chromType, samples, minSize, dendroFileRoot, dendroID):
     # In our tests (08/2025) a hard-coded value of 20 works well on all combinations
     # of samples that we tried
     dims = 10
-    # at most nbExons/10 and nbSamples/3, but at least 3
-    dims = max(min(dims, (FPMarray.shape[0] - 1) // 10, (FPMarray.shape[1] - 1) // 3), 3)
+    dims = min(dims, FPMarray.shape[0] - 1, FPMarray.shape[1] - 1)
     pca = sklearn.decomposition.PCA(n_components=dims, svd_solver='full').fit(FPMarray.T)
     # project samples
     samplesInPCAspace = pca.transform(FPMarray.T)
