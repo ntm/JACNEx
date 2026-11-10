@@ -147,7 +147,6 @@ Step 3 optional arguments, defaults should be OK:
         elif opt in ("--wgs"):
             step1Args.extend([opt])
         elif (opt in ("--wgsCN0sigma")):
-            step2Args.extend([opt, value])
             step3Args.extend([opt, value])
         elif opt in ("--minSamps"):
             step2Args.extend([opt, value])
@@ -160,7 +159,7 @@ Step 3 optional arguments, defaults should be OK:
         else:
             raise Exception("unhandled option " + opt)
 
-    if ("--wgsCN0sigma" in step2Args) and ("--wgs" not in step1Args):
+    if ("--wgsCN0sigma" in step3Args) and ("--wgs" not in step1Args):
         raise Exception("you cannot specify --wgsCN0sigma without activating --wgs")
 
     # set default values if user didn't specify them
@@ -184,8 +183,7 @@ Step 3 optional arguments, defaults should be OK:
         step3Args.extend(["--padding", padding])
     if "--jobs" not in step3Args:
         step3Args.extend(["--jobs", jobs])
-    if ("--wgs" in step1Args) and ("--wgsCN0sigma" not in step2Args):
-        step2Args.extend(["--wgsCN0sigma", wgsCN0sigma])
+    if ("--wgs" in step1Args) and ("--wgsCN0sigma" not in step3Args):
         step3Args.extend(["--wgsCN0sigma", wgsCN0sigma])
 
     #####################################################

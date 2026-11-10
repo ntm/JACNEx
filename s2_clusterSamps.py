@@ -61,8 +61,6 @@ def parseArgs(argv):
     # optional args with default values
     minSamps = 20
     dendro = False
-    # for WGS data: sigma value of the CN0 model, leave at 0 for exome data
-    wgsCN0sigma = 0.0
 
     usage = "NAME:\n" + scriptName + """\n
 DESCRIPTION:
@@ -84,13 +82,12 @@ ARGUMENTS:
    --out [str]: file where clusters will be saved, must not pre-exist, will be gzipped if it ends
                 with '.gz', can have a path component but the subdir must exist
    --minSamps [int]: minimum number of samples for a cluster to be declared valid, default : """ + str(minSamps) + """
-   --wgsCN0sigma [float]: CN0 sigma parameter, use if input data is WGS rather than exome
    --dendro: produce dendrograms and matching text files alongside the --out file
    -h , --help: display this help and exit\n"""
 
     try:
         opts, args = getopt.gnu_getopt(argv[1:], 'h', ["help", "dendro", "counts=",
-                                                       "out=", "minSamps=", "wgsCN0sigma="])
+                                                       "out=", "minSamps="])
     except getopt.GetoptError as e:
         raise Exception(e.msg + ". Try " + scriptName + " --help")
     if len(args) != 0:
@@ -108,8 +105,6 @@ ARGUMENTS:
             outFile = value
         elif opt in ("--minSamps"):
             minSamps = value
-        elif opt in ("--wgsCN0sigma"):
-            wgsCN0sigma = value
         else:
             raise Exception("unhandled option " + opt)
 
@@ -136,13 +131,6 @@ ARGUMENTS:
     except Exception:
         raise Exception("minSamps must be an integer > 1, not " + str(minSamps))
 
-    try:
-        wgsCN0sigma = float(wgsCN0sigma)
-        if (wgsCN0sigma < 0):
-            raise Exception()
-    except Exception:
-        raise Exception("wgsCN0sigma must be a positive float, not " + str(wgsCN0sigma))
-
     ploidyFile = outFile
     # remove file extension (.csv probably), and also .gz if present
     if ploidyFile.endswith(".gz"):
@@ -153,7 +141,7 @@ ARGUMENTS:
         raise Exception("ploidyFile " + ploidyFile + " already exists")
 
     # AOK, return everything that's needed
-    return(countsFile, outFile, minSamps, wgsCN0sigma, dendro, ploidyFile)
+    return(countsFile, outFile, minSamps, dendro, ploidyFile)
 
 
 ####################################################
@@ -163,7 +151,7 @@ ARGUMENTS:
 # may be available in the log
 def main(argv):
     # parse, check and preprocess arguments
-    (countsFile, outFile, minSamps, wgsCN0sigma, dendro, ploidyFile) = parseArgs(argv)
+    (countsFile, outFile, minSamps, dendro, ploidyFile) = parseArgs(argv)
 
     # args seem OK, start working
     logger.debug("called with: " + " ".join(argv[1:]))
